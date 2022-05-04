@@ -1,16 +1,12 @@
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
-import 'package:walle/cli/commands/walle_command.dart';
+import 'package:walle/cli/commands/l10n/base_l10n_command.dart';
 import 'package:walle/cli/exceptions/run_exception.dart';
 import 'package:xml/xml.dart';
 
-const _dirPrefix = 'values';
-const _baseLocale = '';
-const _fileName = 'strings.xml';
-
-/// Command to export summary data from all account.
-class TransferL10nCommand extends WalleCommand {
+/// Command to transfer translations from one project to another.
+class TransferL10nCommand extends BaseL10nCommand {
   static const _argFrom = 'from';
   static const _argTo = 'to';
   static const _argLocales = 'locales';
@@ -70,7 +66,6 @@ class TransferL10nCommand extends WalleCommand {
 
     try {
       const subPath = 'src/main/res/';
-      const indent = '    ';
       final nlNode = XmlText('\n$indent');
 
       final fromDir = Directory(p.join(fromPath, subPath));
@@ -82,9 +77,9 @@ class TransferL10nCommand extends WalleCommand {
 
       await for (final d in fromDir.list()) {
         final dirName = p.basename(d.path);
-        if (dirName.startsWith(_dirPrefix)) {
+        if (dirName.startsWith(dirPrefix)) {
           final fromDirName = dirName;
-          final fromFile = _getXmlFile(fromDir, fromDirName);
+          final fromFile = getXmlFile(fromDir, fromDirName);
           if (!fromFile.existsSync()) continue;
 
           final String toDirName;
@@ -93,11 +88,11 @@ class TransferL10nCommand extends WalleCommand {
           final prefixEndIndex = dirName.indexOf('-');
           final locale = prefixEndIndex != -1
               ? dirName.substring(prefixEndIndex + 1)
-              : _baseLocale;
+              : baseLocale;
 
           if (localesMap.containsKey(locale)) {
             toLocale = localesMap[locale]!;
-            toDirName = _getDirNameByLocale(toLocale);
+            toDirName = getDirNameByLocale(toLocale);
           } else {
             toLocale = locale;
             toDirName = dirName;
@@ -105,7 +100,7 @@ class TransferL10nCommand extends WalleCommand {
 
           if (locales != null && !locales.contains(toLocale)) continue;
 
-          final toFile = _getXmlFile(toDir, toDirName);
+          final toFile = getXmlFile(toDir, toDirName);
           if (!toFile.existsSync()) continue;
 
           printVerbose('Processing $locale...');
@@ -138,7 +133,7 @@ class TransferL10nCommand extends WalleCommand {
               // pretty: true,
               // indent: indent,
               //preserveWhitespace: (n) => !added.contains(n),
-              entityMapping: _XmlEntityMapping(),
+              entityMapping: defaultXmlEntityMapping(),
             ));
           } else {
             printVerbose('Nothing');
@@ -146,7 +141,7 @@ class TransferL10nCommand extends WalleCommand {
         }
       }
 
-      return success(message: 'All strings transferred.');
+      return success(message: 'Done.');
     } on RunException catch (e) {
       return exception(e);
     } catch (e, st) {
@@ -164,33 +159,18 @@ class TransferL10nCommand extends WalleCommand {
     }
   }
 
-  String _getXmlPath(Directory baseDir, String subdirName) =>
-      p.join(baseDir.path, subdirName, _fileName);
-
-  File _getXmlFile(Directory baseDir, String subdirName) =>
-      File(_getXmlPath(baseDir, subdirName));
-
-  String _getXmlPathByLocale(Directory baseDir, String locale) =>
-      _getXmlPath(baseDir, _getDirNameByLocale(locale));
-
-  File _getXmlFileByLocale(Directory baseDir, String locale) =>
-      File(_getXmlPathByLocale(baseDir, locale));
-
-  String _getDirNameByLocale(String locale) =>
-      locale.isNotEmpty ? '$_dirPrefix-$locale' : _dirPrefix;
-
   Future<List<String>> _getAllKeys(
     Directory fromDir,
     Directory toDir,
     Map<String, String> localesMap, {
     bool validateByBase = false,
   }) async {
-    const fromLocale = _baseLocale;
+    final fromLocale = baseLocale;
     final toLocale =
-        validateByBase ? (localesMap[fromLocale] ?? _baseLocale) : _baseLocale;
+        validateByBase ? (localesMap[fromLocale] ?? baseLocale) : baseLocale;
     final fromMap =
-        await _loadValuesByKeys(_getXmlFileByLocale(fromDir, fromLocale));
-    final toMap = await _loadValuesByKeys(_getXmlFileByLocale(toDir, toLocale));
+        await loadValuesByKeys(getXmlFileByLocale(fromDir, fromLocale));
+    final toMap = await loadValuesByKeys(getXmlFileByLocale(toDir, toLocale));
     return toMap.keys.where((key) {
       if (!fromMap.containsKey(key)) return false;
 
@@ -205,30 +185,6 @@ class TransferL10nCommand extends WalleCommand {
       return true;
     }).toList();
   }
-
-  Future<Map<String, String>> _loadValuesByKeys(File file) async {
-    final xml = await _loadXml(file);
-    final data = <String, String>{};
-    xml.forEachResource((child) {
-      data[child.attributeName] = child.text;
-    });
-
-    return data;
-  }
-}
-
-extension _XmlDocumentExtension on XmlDocument {
-  XmlElement get resources => findAllElements('resources').first;
-
-  void forEachResource(void Function(XmlElement child) callback) {
-    for (final child in resources.children) {
-      if (child is XmlElement) callback(child);
-    }
-  }
-}
-
-extension _XmlElementExtension on XmlElement {
-  String get attributeName => getAttribute('name')!;
 }
 
 extension _MapExtension on Map<String, String> {
@@ -250,18 +206,4 @@ extension _MapExtension on Map<String, String> {
   }
 
   String val4Compare(String key) => trimmedValue(key).toLowerCase();
-}
-
-class _XmlEntityMapping extends XmlDefaultEntityMapping {
-  _XmlEntityMapping() : super.xml();
-
-  @override
-  String encodeText(String input) {
-    return super
-        .encodeText(input)
-        .replaceAll('>', '&gt;')
-        .replaceAll('\r', '&#13;')
-        .replaceAll('🀄', '&#126980;')
-        .replaceAll('&#x7F;', '&#127;');
-  }
 }
