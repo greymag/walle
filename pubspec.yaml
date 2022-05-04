@@ -1,0 +1,20 @@
+name: walle
+description: Android development tools
+version: 0.1.0
+
+publish_to: none
+
+environment:
+  sdk: ">=2.12.0 <3.0.0"
+
+dependencies:
+  args: ^2.1.0
+  in_date_range: ^1.0.0+1
+  in_date_utils: ^1.0.1+1
+  list_ext: ^1.0.4
+  path: ^1.8.0
+  string_ext: ^0.2.0
+  xml: ^6.0.1
+
+dev_dependencies:
+  innim_lint: ^0.3.0
