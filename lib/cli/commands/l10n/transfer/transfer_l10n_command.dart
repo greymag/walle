@@ -10,6 +10,7 @@ class TransferL10nCommand extends WalleCommand {
   static const _argFrom = 'from';
   static const _argTo = 'to';
   // TODO: list of keys?
+  static const _argLocales = 'locales';
 
   TransferL10nCommand()
       : super(
@@ -28,6 +29,12 @@ class TransferL10nCommand extends WalleCommand {
         abbr: 't',
         help: 'Target project path.',
         valueHelp: 'PATH',
+      )
+      ..addOption(
+        _argLocales,
+        abbr: 'l',
+        help: 'Locales to transfer.',
+        valueHelp: 'en-US,pt-PT,...',
       );
   }
 
@@ -36,6 +43,7 @@ class TransferL10nCommand extends WalleCommand {
     final args = argResults!;
     final fromPath = args[_argFrom] as String?;
     final toPath = args[_argTo] as String?;
+    final locales = (args[_argLocales] as String?)?.split(',');
 
     const keys = [
       // 'permission_grant_error',
@@ -74,7 +82,6 @@ class TransferL10nCommand extends WalleCommand {
     }
 
     try {
-      // src/main/res/values-ar/strings.xml
       const subPath = 'src/main/res/';
       const fileName = 'strings.xml';
       const dirPrefix = 'values';
@@ -88,29 +95,32 @@ class TransferL10nCommand extends WalleCommand {
         final dirName = p.basename(d.path);
         if (dirName.startsWith(dirPrefix)) {
           final fromDirName = dirName;
+          final fromFile = File(p.join(fromDir.path, fromDirName, fileName));
+          if (!fromFile.existsSync()) continue;
+
           final String toDirName;
+          final String toLocale;
 
           final prefixEndIndex = dirName.indexOf('-');
           final locale =
               prefixEndIndex != -1 ? dirName.substring(prefixEndIndex + 1) : '';
 
           if (localesMap.containsKey(locale)) {
-            final toLocale = localesMap[locale]!;
+            toLocale = localesMap[locale]!;
             if (toLocale.isNotEmpty) {
               toDirName = '$dirPrefix-$toLocale';
             } else {
               toDirName = dirPrefix;
             }
           } else {
+            toLocale = locale;
             toDirName = dirName;
           }
 
-          final fromFile = File(p.join(fromDir.path, fromDirName, fileName));
+          if (locales != null && !locales.contains(toLocale)) continue;
+
           final toFile = File(p.join(toDir.path, toDirName, fileName));
-
-          // if (fromDirName != toDirName) print('From $fromFile to $toFile');
-
-          if (!fromFile.existsSync() || !toFile.existsSync()) continue;
+          if (!toFile.existsSync()) continue;
 
           final fromXml = await _loadXml(fromFile);
           final toXml = await _loadXml(toFile);
