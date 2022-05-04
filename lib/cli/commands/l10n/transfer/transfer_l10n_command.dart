@@ -6,7 +6,7 @@ import 'package:walle/cli/exceptions/run_exception.dart';
 import 'package:xml/xml.dart';
 
 const _dirPrefix = 'values';
-const _baseLocaleForTranslations = 'en';
+const _baseLocale = '';
 const _fileName = 'strings.xml';
 
 /// Command to export summary data from all account.
@@ -76,7 +76,10 @@ class TransferL10nCommand extends WalleCommand {
       final fromDir = Directory(p.join(fromPath, subPath));
       final toDir = Directory(p.join(toPath, subPath));
 
-      final keys = argKeys ?? await _getAllKeys(fromDir, toDir, localesMap);
+      final keys = argKeys ??
+          await _getAllKeys(fromDir, toDir, localesMap,
+              validateByBase: locales != null);
+
       await for (final d in fromDir.list()) {
         final dirName = p.basename(d.path);
         if (dirName.startsWith(_dirPrefix)) {
@@ -88,8 +91,9 @@ class TransferL10nCommand extends WalleCommand {
           final String toLocale;
 
           final prefixEndIndex = dirName.indexOf('-');
-          final locale =
-              prefixEndIndex != -1 ? dirName.substring(prefixEndIndex + 1) : '';
+          final locale = prefixEndIndex != -1
+              ? dirName.substring(prefixEndIndex + 1)
+              : _baseLocale;
 
           if (localesMap.containsKey(locale)) {
             toLocale = localesMap[locale]!;
@@ -103,6 +107,8 @@ class TransferL10nCommand extends WalleCommand {
 
           final toFile = _getXmlFile(toDir, toDirName);
           if (!toFile.existsSync()) continue;
+
+          printVerbose('Processing $locale...');
 
           final fromXml = await _loadXml(fromFile);
           final toXml = await _loadXml(toFile);
@@ -127,13 +133,15 @@ class TransferL10nCommand extends WalleCommand {
           toResources.add(lastTextNode);
 
           if (added.isNotEmpty) {
-            print('Added ${added.length} strings to ${toFile.path}');
+            printInfo('Added ${added.length} strings to ${toFile.path}');
             await toFile.writeAsString(toXml.toXmlString(
               // pretty: true,
               // indent: indent,
               //preserveWhitespace: (n) => !added.contains(n),
               entityMapping: _XmlEntityMapping(),
             ));
+          } else {
+            printVerbose('Nothing');
           }
         }
       }
@@ -171,13 +179,30 @@ class TransferL10nCommand extends WalleCommand {
   String _getDirNameByLocale(String locale) =>
       locale.isNotEmpty ? '$_dirPrefix-$locale' : _dirPrefix;
 
-  Future<List<String>> _getAllKeys(Directory fromDir, Directory toDir,
-      Map<String, String> localesMap) async {
-    final fromMap = await _loadValuesByKeys(_getXmlFileByLocale(fromDir, ''));
-    final toMap = await _loadValuesByKeys(_getXmlFileByLocale(toDir, ''));
+  Future<List<String>> _getAllKeys(
+    Directory fromDir,
+    Directory toDir,
+    Map<String, String> localesMap, {
+    bool validateByBase = false,
+  }) async {
+    const fromLocale = _baseLocale;
+    final toLocale =
+        validateByBase ? (localesMap[fromLocale] ?? _baseLocale) : _baseLocale;
+    final fromMap =
+        await _loadValuesByKeys(_getXmlFileByLocale(fromDir, fromLocale));
+    final toMap = await _loadValuesByKeys(_getXmlFileByLocale(toDir, toLocale));
     return toMap.keys.where((key) {
-      // TODO: check en translation (optional)
-      return fromMap.containsKey(key);
+      if (!fromMap.containsKey(key)) return false;
+
+      if (validateByBase &&
+          toMap.val4Compare(key) != fromMap.val4Compare(key)) {
+        printVerbose('Skip $key because values are not equal');
+        printVerbose('  from: ${fromMap[key]}');
+        printVerbose('    to: ${toMap[key]}');
+        return false;
+      }
+
+      return true;
     }).toList();
   }
 
@@ -204,6 +229,27 @@ extension _XmlDocumentExtension on XmlDocument {
 
 extension _XmlElementExtension on XmlElement {
   String get attributeName => getAttribute('name')!;
+}
+
+extension _MapExtension on Map<String, String> {
+  String trimmedValue(String key) {
+    var text = this[key]!;
+    const trimmed = {'.'};
+
+    while (text.isNotEmpty) {
+      text = text.trim();
+      final len = text.length;
+      if (len > 0 && trimmed.contains(text[len - 1])) {
+        text = text.substring(0, len - 1);
+      } else {
+        break;
+      }
+    }
+
+    return text;
+  }
+
+  String val4Compare(String key) => trimmedValue(key).toLowerCase();
 }
 
 class _XmlEntityMapping extends XmlDefaultEntityMapping {
