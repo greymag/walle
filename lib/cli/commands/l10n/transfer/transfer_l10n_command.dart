@@ -5,12 +5,16 @@ import 'package:walle/cli/commands/walle_command.dart';
 import 'package:walle/cli/exceptions/run_exception.dart';
 import 'package:xml/xml.dart';
 
+const _dirPrefix = 'values';
+const _baseLocaleForTranslations = 'en';
+const _fileName = 'strings.xml';
+
 /// Command to export summary data from all account.
 class TransferL10nCommand extends WalleCommand {
   static const _argFrom = 'from';
   static const _argTo = 'to';
-  // TODO: list of keys?
   static const _argLocales = 'locales';
+  static const _argKeys = 'keys';
 
   TransferL10nCommand()
       : super(
@@ -35,6 +39,13 @@ class TransferL10nCommand extends WalleCommand {
         abbr: 'l',
         help: 'Locales to transfer.',
         valueHelp: 'en-US,pt-PT,...',
+      )
+      ..addOption(
+        _argKeys,
+        abbr: 'k',
+        help: 'Keys to transfer. If not defined - all missed keys, '
+            'presented at main locale will be transferred.',
+        valueHelp: 'key1,key2,...',
       );
   }
 
@@ -45,33 +56,9 @@ class TransferL10nCommand extends WalleCommand {
     final toPath = args[_argTo] as String?;
     final locales = (args[_argLocales] as String?)?.split(',');
 
-    const keys = [
-      // 'permission_grant_error',
-      // 'statistics_permission_name',
-      // 'overlay_permission_name',
-      // 'picture_in_picture_permission_name',
-      // 'start_activity_from_background_permission_name',
-      // 'accessibility_permission_name',
-      // 'manage_storage_permission_name',
-      // 'start_activity_from_background_permission_reason',
-      // 'cooler_statistics_permission_reason',
-      // 'pip_or_overlay_permission_reason',
-      // 'permission_required',
-      // 'cache_statistics_permission_reason',
-      // 'write_external_storage_permission_name',
-      // 'android_data_storage_permission_name',
-      // 'text_storage_additional_description',
-      // 'order_number_of',
-      // 'storage_for_clear_permission_reason',
-      // 'text_get_permissions_folder_android_data_for_clean_dialog_message',
-      // 'notification_manager_permission_name',
-      // 'force_stop_statistics_permission_reason',
-      // 'android_data_permission_reason',
-      // 'storage_for_file_manager_permission_reason',
-      // 'optimization_battery_statistics_permission_reason',
-      'text_scan_in_process',
-    ];
+    final argKeys = (args[_argKeys] as String?)?.split(',');
 
+    // TODO: move to args?
     const localesMap = {
       '': 'en',
       'zh-rCN': '',
@@ -83,19 +70,18 @@ class TransferL10nCommand extends WalleCommand {
 
     try {
       const subPath = 'src/main/res/';
-      const fileName = 'strings.xml';
-      const dirPrefix = 'values';
       const indent = '    ';
       final nlNode = XmlText('\n$indent');
 
       final fromDir = Directory(p.join(fromPath, subPath));
       final toDir = Directory(p.join(toPath, subPath));
 
+      final keys = argKeys ?? await _getAllKeys(fromDir, toDir, localesMap);
       await for (final d in fromDir.list()) {
         final dirName = p.basename(d.path);
-        if (dirName.startsWith(dirPrefix)) {
+        if (dirName.startsWith(_dirPrefix)) {
           final fromDirName = dirName;
-          final fromFile = File(p.join(fromDir.path, fromDirName, fileName));
+          final fromFile = _getXmlFile(fromDir, fromDirName);
           if (!fromFile.existsSync()) continue;
 
           final String toDirName;
@@ -107,11 +93,7 @@ class TransferL10nCommand extends WalleCommand {
 
           if (localesMap.containsKey(locale)) {
             toLocale = localesMap[locale]!;
-            if (toLocale.isNotEmpty) {
-              toDirName = '$dirPrefix-$toLocale';
-            } else {
-              toDirName = dirPrefix;
-            }
+            toDirName = _getDirNameByLocale(toLocale);
           } else {
             toLocale = locale;
             toDirName = dirName;
@@ -119,34 +101,30 @@ class TransferL10nCommand extends WalleCommand {
 
           if (locales != null && !locales.contains(toLocale)) continue;
 
-          final toFile = File(p.join(toDir.path, toDirName, fileName));
+          final toFile = _getXmlFile(toDir, toDirName);
           if (!toFile.existsSync()) continue;
 
           final fromXml = await _loadXml(fromFile);
           final toXml = await _loadXml(toFile);
 
-          final fromResources = fromXml.resources;
-          final toResources = toXml.resources;
-
-          final lastTextNode = toResources.children.removeLast();
+          final toResources = toXml.resources.children;
+          final lastTextNode = toResources.removeLast();
 
           final added = <XmlElement>{};
-          for (final child in fromResources.children) {
-            if (child is XmlElement) {
-              final name = child.attributeName;
-              if (keys.contains(name) &&
-                  !toResources.children
-                      .any((c) => c is XmlElement && c.attributeName == name)) {
-                final newNode = child.copy();
-                toResources.children
-                  ..add(nlNode.copy())
-                  ..add(newNode);
+          fromXml.forEachResource((child) {
+            final name = child.attributeName;
+            if (keys.contains(name) &&
+                !toResources
+                    .any((c) => c is XmlElement && c.attributeName == name)) {
+              final newNode = child.copy();
+              toResources
+                ..add(nlNode.copy())
+                ..add(newNode);
 
-                added.add(newNode);
-              }
+              added.add(newNode);
             }
-          }
-          toResources.children.add(lastTextNode);
+          });
+          toResources.add(lastTextNode);
 
           if (added.isNotEmpty) {
             print('Added ${added.length} strings to ${toFile.path}');
@@ -177,10 +155,51 @@ class TransferL10nCommand extends WalleCommand {
       throw RunException.err('Failed load XML ${file.path}: $e');
     }
   }
+
+  String _getXmlPath(Directory baseDir, String subdirName) =>
+      p.join(baseDir.path, subdirName, _fileName);
+
+  File _getXmlFile(Directory baseDir, String subdirName) =>
+      File(_getXmlPath(baseDir, subdirName));
+
+  String _getXmlPathByLocale(Directory baseDir, String locale) =>
+      _getXmlPath(baseDir, _getDirNameByLocale(locale));
+
+  File _getXmlFileByLocale(Directory baseDir, String locale) =>
+      File(_getXmlPathByLocale(baseDir, locale));
+
+  String _getDirNameByLocale(String locale) =>
+      locale.isNotEmpty ? '$_dirPrefix-$locale' : _dirPrefix;
+
+  Future<List<String>> _getAllKeys(Directory fromDir, Directory toDir,
+      Map<String, String> localesMap) async {
+    final fromMap = await _loadValuesByKeys(_getXmlFileByLocale(fromDir, ''));
+    final toMap = await _loadValuesByKeys(_getXmlFileByLocale(toDir, ''));
+    return toMap.keys.where((key) {
+      // TODO: check en translation (optional)
+      return fromMap.containsKey(key);
+    }).toList();
+  }
+
+  Future<Map<String, String>> _loadValuesByKeys(File file) async {
+    final xml = await _loadXml(file);
+    final data = <String, String>{};
+    xml.forEachResource((child) {
+      data[child.attributeName] = child.text;
+    });
+
+    return data;
+  }
 }
 
 extension _XmlDocumentExtension on XmlDocument {
   XmlElement get resources => findAllElements('resources').first;
+
+  void forEachResource(void Function(XmlElement child) callback) {
+    for (final child in resources.children) {
+      if (child is XmlElement) callback(child);
+    }
+  }
 }
 
 extension _XmlElementExtension on XmlElement {
