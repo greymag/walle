@@ -54,8 +54,8 @@ class ExportL10nCommand extends BaseL10nCommand {
             message: 'Translation file for locale $locale not found.');
       }
 
-      final baseXml = await _loadXml(baseFile);
-      final translationXml = await _loadXml(translationFile);
+      final baseXml = await loadXml(baseFile);
+      final translationXml = await loadXml(translationFile);
 
       final translationResources = translationXml.resources.children;
       final forTranslation = <XmlElement>{};
@@ -102,15 +102,6 @@ class ExportL10nCommand extends BaseL10nCommand {
     } catch (e, st) {
       printVerbose('Exception: $e\n$st');
       return error(2, message: 'Failed by: $e');
-    }
-  }
-
-  Future<XmlDocument> _loadXml(File file) async {
-    try {
-      return XmlDocument.parse(await file.readAsString());
-    } catch (e, st) {
-      printVerbose('Exception during load xml from ${file.path}: $e\n$st');
-      throw RunException.err('Failed load XML ${file.path}: $e');
     }
   }
 }
