@@ -81,6 +81,30 @@ abstract class BaseL10nCommand extends WalleCommand {
 
   @protected
   XmlEntityMapping defaultXmlEntityMapping() => _XmlEntityMapping();
+
+  @protected
+  Future<void> forEachStringsFile(
+    Directory dir,
+    Future<void> Function(String dirName, File file, String locale) callback,
+  ) async {
+    await for (final d in dir.list()) {
+      if (d is! Directory) continue;
+
+      final dirName = p.basename(d.path);
+      if (dirName.startsWith(dirPrefix)) {
+        final fromDirName = dirName;
+        final fromFile = getXmlFile(dir, fromDirName);
+        if (!fromFile.existsSync()) continue;
+
+        final prefixEndIndex = dirName.indexOf('-');
+        final locale = prefixEndIndex != -1
+            ? dirName.substring(prefixEndIndex + 1)
+            : baseLocale;
+
+        await callback(dirName, fromFile, locale);
+      }
+    }
+  }
 }
 
 extension XmlDocumentExtension on XmlDocument {

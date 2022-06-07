@@ -75,71 +75,59 @@ class TransferL10nCommand extends BaseL10nCommand {
           await _getAllKeys(fromDir, toDir, localesMap,
               validateByBase: locales != null);
 
-      await for (final d in fromDir.list()) {
-        final dirName = p.basename(d.path);
-        if (dirName.startsWith(dirPrefix)) {
-          final fromDirName = dirName;
-          final fromFile = getXmlFile(fromDir, fromDirName);
-          if (!fromFile.existsSync()) continue;
+      await forEachStringsFile(fromDir, (dirName, file, locale) async {
+        final String toDirName;
+        final String toLocale;
 
-          final String toDirName;
-          final String toLocale;
-
-          final prefixEndIndex = dirName.indexOf('-');
-          final locale = prefixEndIndex != -1
-              ? dirName.substring(prefixEndIndex + 1)
-              : baseLocale;
-
-          if (localesMap.containsKey(locale)) {
-            toLocale = localesMap[locale]!;
-            toDirName = getDirNameByLocale(toLocale);
-          } else {
-            toLocale = locale;
-            toDirName = dirName;
-          }
-
-          if (locales != null && !locales.contains(toLocale)) continue;
-
-          final toFile = getXmlFile(toDir, toDirName);
-          if (!toFile.existsSync()) continue;
-
-          printVerbose('Processing $locale...');
-
-          final fromXml = await _loadXml(fromFile);
-          final toXml = await _loadXml(toFile);
-
-          final toResources = toXml.resources.children;
-          final lastTextNode = toResources.removeLast();
-
-          final added = <XmlElement>{};
-          fromXml.forEachResource((child) {
-            final name = child.attributeName;
-            if (keys.contains(name) &&
-                !toResources
-                    .any((c) => c is XmlElement && c.attributeName == name)) {
-              final newNode = child.copy();
-              toResources
-                ..add(nlNode.copy())
-                ..add(newNode);
-
-              added.add(newNode);
-            }
-          });
-          toResources.add(lastTextNode);
-
-          if (added.isNotEmpty) {
-            printInfo('Added ${added.length} strings to ${toFile.path}');
-            await toFile.writeAsString(toXml.toXmlString(
-              // pretty: true,
-              // indent: indent,
-              //preserveWhitespace: (n) => !added.contains(n),
-              entityMapping: defaultXmlEntityMapping(),
-            ));
-          } else {
-            printVerbose('Nothing');
-          }
+        if (localesMap.containsKey(locale)) {
+          toLocale = localesMap[locale]!;
+          toDirName = getDirNameByLocale(toLocale);
+        } else {
+          toLocale = locale;
+          toDirName = dirName;
         }
-      }
+
+        if (locales != null && !locales.contains(toLocale)) return;
+
+        final toFile = getXmlFile(toDir, toDirName);
+        if (!toFile.existsSync()) return;
+
+        printVerbose('Processing $locale...');
+
+        final fromXml = await _loadXml(file);
+        final toXml = await _loadXml(toFile);
+
+        final toResources = toXml.resources.children;
+        final lastTextNode = toResources.removeLast();
+
+        final added = <XmlElement>{};
+        fromXml.forEachResource((child) {
+          final name = child.attributeName;
+          if (keys.contains(name) &&
+              !toResources
+                  .any((c) => c is XmlElement && c.attributeName == name)) {
+            final newNode = child.copy();
+            toResources
+              ..add(nlNode.copy())
+              ..add(newNode);
+
+            added.add(newNode);
+          }
+        });
+        toResources.add(lastTextNode);
+
+        if (added.isNotEmpty) {
+          printInfo('Added ${added.length} strings to ${toFile.path}');
+          await toFile.writeAsString(toXml.toXmlString(
+            // pretty: true,
+            // indent: indent,
+            //preserveWhitespace: (n) => !added.contains(n),
+            entityMapping: defaultXmlEntityMapping(),
+          ));
+        } else {
+          printVerbose('Nothing');
+        }
+      });
 
       return success(message: 'Done.');
     } on RunException catch (e) {
