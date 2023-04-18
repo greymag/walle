@@ -127,7 +127,8 @@ class GoolgedocImportL10nCommand extends BaseL10nCommand {
       baseXml.forEachResource((child) => allowedIds.add(child.attributeName));
 
       // TODO: move to args?
-      const localeForBase = 'zh-rCN';
+      // const localeForBase = 'zh-rCN';
+      const localeForBase = 'en';
       const fallbackLocales = {
         'no-rno': 'no',
         'nn-rno': 'no',

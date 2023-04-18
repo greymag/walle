@@ -56,8 +56,9 @@ class TransferL10nCommand extends BaseL10nCommand {
 
     // TODO: move to args?
     const localesMap = {
-      '': 'en',
-      'zh-rCN': '',
+      // '': 'en',
+      // 'zh-rCN': '',
+      'en': '',
     };
 
     if (fromPath == null || toPath == null) {
