@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:googleapis/sheets/v4.dart';
 import 'package:path/path.dart' as p;
 import 'package:walle/cli/commands/l10n/base_l10n_command.dart';
 import 'package:walle/cli/exceptions/run_exception.dart';
@@ -65,8 +66,31 @@ class GoolgedocImportL10nCommand extends BaseL10nCommand {
       final document = await api.loadDocument(fromUrl);
       printVerbose('Document loaded, ${document.sheets?.length} sheets');
 
-      // TODO: sheet as arg of get from url
-      final sheet = document.sheets!.first;
+      const sheetIdParam = '#gid=';
+      final sheetIdIndex = fromUrl.indexOf(sheetIdParam);
+
+      final sheets = document.sheets!;
+      final Sheet sheet;
+
+      if (sheetIdIndex == -1) {
+        sheet = sheets.first;
+      } else {
+        final sheetId =
+            int.tryParse(fromUrl.substring(sheetIdIndex + sheetIdParam.length));
+        if (sheetId == null) {
+          return error(2, message: 'Failed to parse sheet id');
+        }
+
+        final sheetIndex =
+            sheets.indexWhere((e) => e.properties?.sheetId == sheetId);
+
+        if (sheetIndex == -1) {
+          return error(2, message: 'Sheet with id <$sheetId> is not found');
+        }
+
+        sheet = sheets[sheetIndex];
+      }
+
       printVerbose('Selected sheet: ${sheet.properties?.title}');
 
       final data = sheet.data!.first;
