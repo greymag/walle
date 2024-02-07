@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:list_ext/list_ext.dart';
 import 'package:path/path.dart' as p;
 import 'package:walle/cli/commands/l10n/base_l10n_command.dart';
 import 'package:walle/cli/exceptions/run_exception.dart';
@@ -42,7 +43,8 @@ class TransferL10nCommand extends BaseL10nCommand {
         _argKeys,
         abbr: 'k',
         help: 'Keys to transfer. If not defined - all missed keys, '
-            'presented at main locale will be transferred.',
+            'presented at main locale will be transferred. '
+            'You can use format key=alias if you want to rename the key during transfer.',
         valueHelp: 'key1,key2,...',
       )
       ..addOption(
@@ -76,11 +78,12 @@ class TransferL10nCommand extends BaseL10nCommand {
     final argKeys = (args[_argKeys] as String?)?.split(',');
 
     // TODO: move to args?
-    const localesMap = {
+    const androidLocalesMap = {
       // '': 'en',
       // 'zh-rCN': '',
       'en': '',
     };
+    const emptyLocalesMap = <String, String>{};
 
     if (fromPath == null || toPath == null) {
       return error(1, message: 'Both paths are required.');
@@ -90,14 +93,25 @@ class TransferL10nCommand extends BaseL10nCommand {
       final nlNode = XmlText('\n$indent');
 
       final (fromDir, isFromAndroidProject) = getDir(fromPath);
-      // TODO: consider if one of dir from android project and other is not
-      final (toDir, _) = getDir(toPath);
+      final (toDir, isToAndroidProject) = getDir(toPath);
 
       printVerbose('Transfer from ${fromDir.path} to ${toDir.path}');
 
-      final keys = argKeys ??
+      final fromLocalesMap =
+          isFromAndroidProject ? androidLocalesMap : emptyLocalesMap;
+
+      final toLocalesMap =
+          isToAndroidProject ? androidLocalesMap : emptyLocalesMap;
+
+      final keysMap = <String, String>{};
+      final keys = argKeys?.map((k) {
+            final parts = k.split('=');
+            final res = parts.first;
+            if (parts.length == 2) keysMap[res] = parts[1];
+            return res;
+          }) ??
           await _getAllKeys(
-              fromDir, toDir, fromFileName, toFileName, localesMap,
+              fromDir, toDir, fromFileName, toFileName, fromLocalesMap,
               validateByBase: locales != null);
 
       printVerbose('Keys for transfer: ${keys.join(', ')}.');
@@ -109,8 +123,8 @@ class TransferL10nCommand extends BaseL10nCommand {
 
         printVerbose('Checking from file ${file.path} [$locale]');
 
-        if (localesMap.containsKey(locale)) {
-          toLocale = localesMap[locale]!;
+        if (toLocalesMap.containsKey(locale)) {
+          toLocale = toLocalesMap[locale]!;
           toDirName = getDirNameByLocale(toLocale);
         } else {
           toLocale = locale;
@@ -136,23 +150,41 @@ class TransferL10nCommand extends BaseL10nCommand {
         final lastTextNode = toResources.removeLast();
 
         final added = <XmlElement>{};
+        final changed = <XmlElement>{};
         fromXml.forEachResource((child) {
           final name = child.attributeName;
-          if (keys.contains(name) &&
-              !toResources
-                  .any((c) => c is XmlElement && c.attributeName == name)) {
-            final newNode = child.copy();
-            toResources
-              ..add(nlNode.copy())
-              ..add(newNode);
+          if (keys.contains(name)) {
+            final newName = keysMap.containsKey(name) ? keysMap[name]! : name;
+            final currentNode = toResources
+                .whereType<XmlElement>()
+                .firstWhereOrNull((c) => c.attributeName == newName);
+            if (currentNode == null) {
+              printVerbose('Add <$newName>: ${child.innerText}');
+              final newNode = child.copy();
+              newNode.attributeName = newName;
 
-            added.add(newNode);
+              toResources
+                ..add(nlNode.copy())
+                ..add(newNode);
+
+              added.add(newNode);
+            } else if (currentNode.innerText != child.innerText) {
+              printVerbose(
+                  'Change <$newName>: ${currentNode.innerText} -> ${child.innerText}');
+              changed.add(child);
+              currentNode.innerText = child.innerText;
+            } else {
+              printVerbose('Key <$newName> already exist, skipping');
+            }
           }
         });
         toResources.add(lastTextNode);
 
-        if (added.isNotEmpty) {
-          printInfo('Added ${added.length} strings to ${toFile.path}');
+        if (added.isNotEmpty || changed.isNotEmpty) {
+          printInfo('${toFile.path}: ${[
+            if (added.isNotEmpty) 'added: ${added.length}',
+            if (changed.isNotEmpty) 'changed: ${changed.length}',
+          ].join(', ')}');
           await toFile.writeAsString(toXml.toXmlString(
             // pretty: true,
             // indent: indent,

@@ -136,6 +136,7 @@ extension XmlDocumentExtension on XmlDocument {
 
 extension XmlElementExtension on XmlElement {
   String get attributeName => getAttribute('name')!;
+  set attributeName(String value) => setAttribute('name', value);
 }
 
 class _XmlEntityMapping extends XmlDefaultEntityMapping {
