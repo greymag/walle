@@ -45,6 +45,8 @@ class GoolgedocImportL10nCommand extends BaseL10nCommand {
     final fromUrl = args[_argFrom] as String?;
     final path = args[_argPath] as String?;
     // final locale = args[_argLocale] as String?;
+    // TODO: add argument
+    final fileName = defaultFileName;
 
     if (fromUrl == null || path == null) {
       // || locale == null) {
@@ -120,8 +122,9 @@ class GoolgedocImportL10nCommand extends BaseL10nCommand {
           .sublist(1)
           .takeWhile((row) => row.values?[idIndex].formattedValue != null);
 
-      final baseFile = getXmlFileByLocaleIfExist(dir, baseLocaleForTranslate) ??
-          getXmlFileByLocale(dir, baseLocale);
+      final baseFile =
+          getXmlFileByLocaleIfExist(dir, baseLocaleForTranslate, fileName) ??
+              getXmlFileByLocale(dir, baseLocale, fileName);
       final baseXml = await loadXml(baseFile);
       final allowedIds = <String>{};
       baseXml.forEachResource((child) => allowedIds.add(child.attributeName));
@@ -152,7 +155,7 @@ class GoolgedocImportL10nCommand extends BaseL10nCommand {
       var statLocalesFailedCount = 0;
 
       printVerbose('Start iterating over strings files');
-      await forEachStringsFile(dir, (dirName, file, l) async {
+      await forEachStringsFile(dir, fileName, (dirName, file, l) async {
         final locale = l == baseLocale ? localeForBase : l;
         printVerbose('$locale: ${file.path}');
 

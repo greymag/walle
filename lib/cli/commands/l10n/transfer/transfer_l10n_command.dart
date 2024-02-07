@@ -10,6 +10,8 @@ class TransferL10nCommand extends BaseL10nCommand {
   static const _argFrom = 'from';
   static const _argTo = 'to';
   static const _argLocales = 'locales';
+  static const _argFromFileName = 'filename';
+  static const _argToFileName = 'to-filename';
   static const _argKeys = 'keys';
 
   TransferL10nCommand()
@@ -42,6 +44,20 @@ class TransferL10nCommand extends BaseL10nCommand {
         help: 'Keys to transfer. If not defined - all missed keys, '
             'presented at main locale will be transferred.',
         valueHelp: 'key1,key2,...',
+      )
+      ..addOption(
+        _argFromFileName,
+        abbr: 'n',
+        help: 'Name of the file to work with',
+        valueHelp: 'my_filename',
+        defaultsTo: defaultFileName,
+      )
+      ..addOption(
+        _argToFileName,
+        abbr: 'o',
+        help: 'Name of the target file fpr transfer. '
+            'By default equals to $_argFromFileName',
+        valueHelp: 'target_filename',
       );
   }
 
@@ -51,6 +67,11 @@ class TransferL10nCommand extends BaseL10nCommand {
     final fromPath = args[_argFrom] as String?;
     final toPath = args[_argTo] as String?;
     final locales = (args[_argLocales] as String?)?.split(',');
+
+    final fromFileName =
+        getXmlFilename(args[_argFromFileName] as String?, defaultFileName);
+    final toFileName =
+        getXmlFilename(args[_argToFileName] as String?, fromFileName);
 
     final argKeys = (args[_argKeys] as String?)?.split(',');
 
@@ -66,19 +87,27 @@ class TransferL10nCommand extends BaseL10nCommand {
     }
 
     try {
-      const subPath = 'src/main/res/';
       final nlNode = XmlText('\n$indent');
 
-      final fromDir = Directory(p.join(fromPath, subPath));
-      final toDir = Directory(p.join(toPath, subPath));
+      final (fromDir, isFromAndroidProject) = getDir(fromPath);
+      // TODO: consider if one of dir from android project and other is not
+      final (toDir, _) = getDir(toPath);
+
+      printVerbose('Transfer from ${fromDir.path} to ${toDir.path}');
 
       final keys = argKeys ??
-          await _getAllKeys(fromDir, toDir, localesMap,
+          await _getAllKeys(
+              fromDir, toDir, fromFileName, toFileName, localesMap,
               validateByBase: locales != null);
 
-      await forEachStringsFile(fromDir, (dirName, file, locale) async {
+      printVerbose('Keys for transfer: ${keys.join(', ')}.');
+
+      await forEachStringsFile(fromDir, fromFileName,
+          (dirName, file, locale) async {
         final String toDirName;
         final String toLocale;
+
+        printVerbose('Checking from file ${file.path} [$locale]');
 
         if (localesMap.containsKey(locale)) {
           toLocale = localesMap[locale]!;
@@ -90,8 +119,13 @@ class TransferL10nCommand extends BaseL10nCommand {
 
         if (locales != null && !locales.contains(toLocale)) return;
 
-        final toFile = getXmlFile(toDir, toDirName);
-        if (!toFile.existsSync()) return;
+        final toFile = getXmlFile(toDir, toDirName, toFileName);
+
+        printVerbose('Checking to file ${toFile.path} [$toLocale]');
+        if (!toFile.existsSync()) {
+          printVerbose('Not found, skipping');
+          return;
+        }
 
         printVerbose('Processing $locale...');
 
@@ -128,7 +162,7 @@ class TransferL10nCommand extends BaseL10nCommand {
         } else {
           printVerbose('Nothing');
         }
-      });
+      }, isAndroidProject: isFromAndroidProject);
 
       return success(message: 'Done.');
     } on RunException catch (e) {
@@ -151,15 +185,18 @@ class TransferL10nCommand extends BaseL10nCommand {
   Future<List<String>> _getAllKeys(
     Directory fromDir,
     Directory toDir,
+    String fromFileName,
+    String toFileName,
     Map<String, String> localesMap, {
     bool validateByBase = false,
   }) async {
     final fromLocale = baseLocale;
     final toLocale =
         validateByBase ? (localesMap[fromLocale] ?? baseLocale) : baseLocale;
-    final fromMap =
-        await loadValuesByKeys(getXmlFileByLocale(fromDir, fromLocale));
-    final toMap = await loadValuesByKeys(getXmlFileByLocale(toDir, toLocale));
+    final fromMap = await loadValuesByKeys(
+        getXmlFileByLocale(fromDir, fromLocale, fromFileName));
+    final toMap =
+        await loadValuesByKeys(getXmlFileByLocale(toDir, toLocale, toFileName));
     return toMap.keys.where((key) {
       if (!fromMap.containsKey(key)) return false;
 
@@ -173,6 +210,13 @@ class TransferL10nCommand extends BaseL10nCommand {
 
       return true;
     }).toList();
+  }
+
+  (Directory, bool) getDir(String mainPath) {
+    const subPath = 'src/main/res/';
+    final dirForAndroidProject = Directory(p.join(mainPath, subPath));
+    if (dirForAndroidProject.existsSync()) return (dirForAndroidProject, true);
+    return (Directory(mainPath), false);
   }
 }
 

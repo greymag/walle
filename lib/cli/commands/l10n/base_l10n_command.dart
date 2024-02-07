@@ -8,7 +8,7 @@ import 'package:xml/xml.dart';
 
 const _dirPrefix = 'values';
 const _baseLocale = '';
-const _fileName = 'strings.xml';
+const _defaultFileName = 'strings.xml';
 const _indent = '    ';
 const _baseLocaleForTranslate = 'en';
 
@@ -34,7 +34,7 @@ abstract class BaseL10nCommand extends WalleCommand {
   String get dirPrefix => _dirPrefix;
 
   @protected
-  String get fileName => _fileName;
+  String get defaultFileName => _defaultFileName;
 
   @protected
   String get baseLocale => _baseLocale;
@@ -43,24 +43,26 @@ abstract class BaseL10nCommand extends WalleCommand {
   String get baseLocaleForTranslate => _baseLocaleForTranslate;
 
   @protected
-  String getXmlPath(Directory baseDir, String subdirName) =>
-      p.join(baseDir.path, subdirName, _fileName);
+  String getXmlPath(Directory baseDir, String subdirName, String fileName) =>
+      p.join(baseDir.path, subdirName, fileName);
 
   @protected
-  File getXmlFile(Directory baseDir, String subdirName) =>
-      File(getXmlPath(baseDir, subdirName));
+  File getXmlFile(Directory baseDir, String subdirName, String fileName) =>
+      File(getXmlPath(baseDir, subdirName, fileName));
 
   @protected
-  String getXmlPathByLocale(Directory baseDir, String locale) =>
-      getXmlPath(baseDir, getDirNameByLocale(locale));
+  String getXmlPathByLocale(
+          Directory baseDir, String locale, String fileName) =>
+      getXmlPath(baseDir, getDirNameByLocale(locale), fileName);
 
   @protected
-  File getXmlFileByLocale(Directory baseDir, String locale) =>
-      File(getXmlPathByLocale(baseDir, locale));
+  File getXmlFileByLocale(Directory baseDir, String locale, String fileName) =>
+      File(getXmlPathByLocale(baseDir, locale, fileName));
 
   @protected
-  File? getXmlFileByLocaleIfExist(Directory baseDir, String locale) {
-    final file = getXmlFileByLocale(baseDir, locale);
+  File? getXmlFileByLocaleIfExist(
+      Directory baseDir, String locale, String fileName) {
+    final file = getXmlFileByLocale(baseDir, locale, fileName);
     return file.existsSync() ? file : null;
   }
 
@@ -85,25 +87,40 @@ abstract class BaseL10nCommand extends WalleCommand {
   @protected
   Future<void> forEachStringsFile(
     Directory dir,
-    Future<void> Function(String dirName, File file, String locale) callback,
-  ) async {
+    String fileName,
+    Future<void> Function(String dirName, File file, String locale) callback, {
+    bool isAndroidProject = true,
+  }) async {
     await for (final d in dir.list()) {
       if (d is! Directory) continue;
 
+      final prefix = isAndroidProject ? dirPrefix : '';
       final dirName = p.basename(d.path);
-      if (dirName.startsWith(dirPrefix)) {
+      if (prefix.isEmpty || dirName.startsWith(prefix)) {
         final fromDirName = dirName;
-        final fromFile = getXmlFile(dir, fromDirName);
+        final fromFile = getXmlFile(dir, fromDirName, fileName);
         if (!fromFile.existsSync()) continue;
 
-        final prefixEndIndex = dirName.indexOf('-');
-        final locale = prefixEndIndex != -1
-            ? dirName.substring(prefixEndIndex + 1)
-            : baseLocale;
+        final String locale;
+        if (isAndroidProject) {
+          final prefixEndIndex = dirName.indexOf('-');
+          locale = prefixEndIndex != -1
+              ? dirName.substring(prefixEndIndex + 1)
+              : baseLocale;
+        } else {
+          locale = dirName;
+        }
 
         await callback(dirName, fromFile, locale);
       }
     }
+  }
+
+  @protected
+  String getXmlFilename(String? name, String defaultName) {
+    final res = name ?? defaultName;
+    const ext = '.xml';
+    return p.extension(res) == ext ? res : p.setExtension(res, ext);
   }
 }
 

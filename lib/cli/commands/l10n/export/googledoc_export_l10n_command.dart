@@ -35,6 +35,8 @@ class GoolgedocExportL10nCommand extends BaseL10nCommand {
     final args = argResults!;
     final toUrl = args[_argTo] as String?;
     final path = args[_argPath] as String?;
+    // TODO: add argument
+    final fileName = defaultFileName;
 
     if (toUrl == null || path == null) {
       return error(1, message: 'Path and URL are required.');
@@ -60,8 +62,9 @@ class GoolgedocExportL10nCommand extends BaseL10nCommand {
       // final sheet = document.sheets!.first;
       // printVerbose('Selected sheet: ${sheet.properties?.title}');
 
-      final baseFile = getXmlFileByLocaleIfExist(dir, baseLocaleForTranslate) ??
-          getXmlFileByLocale(dir, baseLocale);
+      final baseFile =
+          getXmlFileByLocaleIfExist(dir, baseLocaleForTranslate, fileName) ??
+              getXmlFileByLocale(dir, baseLocale, fileName);
       final baseXml = await loadXml(baseFile);
 
       // TODO: only if not exist in google doc (or maybe update value for all with difference)

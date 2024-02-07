@@ -35,6 +35,8 @@ class ExportL10nCommand extends BaseL10nCommand {
     final args = argResults!;
     final path = args[_argPath] as String?;
     final locale = args[_argLocale] as String?;
+    // TODO: add argument
+    final fileName = defaultFileName;
 
     if (path == null || locale == null) {
       return error(1, message: 'Path and locale are required.');
@@ -44,9 +46,10 @@ class ExportL10nCommand extends BaseL10nCommand {
       const subPath = 'src/main/res/';
       final dir = Directory(p.join(path, subPath));
 
-      final baseFile = getXmlFileByLocaleIfExist(dir, baseLocaleForTranslate) ??
-          getXmlFileByLocale(dir, baseLocale);
-      final translationFile = getXmlFileByLocale(dir, locale);
+      final baseFile =
+          getXmlFileByLocaleIfExist(dir, baseLocaleForTranslate, fileName) ??
+              getXmlFileByLocale(dir, baseLocale, fileName);
+      final translationFile = getXmlFileByLocale(dir, locale, fileName);
 
       if (!translationFile.existsSync()) {
         printVerbose('Not found ${translationFile.path}');
