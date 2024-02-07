@@ -84,6 +84,13 @@ class TransferL10nCommand extends BaseL10nCommand {
       'en': '',
     };
     const emptyLocalesMap = <String, String>{};
+    const androidNonAndroidMap = <String, String>{
+      'iw': 'he',
+      'nb': 'no',
+      'in': 'id',
+      'b+sr+Latn': 'sr',
+      '': 'en',
+    };
 
     if (fromPath == null || toPath == null) {
       return error(1, message: 'Both paths are required.');
@@ -95,13 +102,19 @@ class TransferL10nCommand extends BaseL10nCommand {
       final (fromDir, isFromAndroidProject) = getDir(fromPath);
       final (toDir, isToAndroidProject) = getDir(toPath);
 
-      printVerbose('Transfer from ${fromDir.path} to ${toDir.path}');
+      printVerbose(
+          'Transfer from ${fromDir.path}${isFromAndroidProject ? ' [android project]' : ''} '
+          'to ${toDir.path}${isToAndroidProject ? ' [android project]' : ''} ');
 
-      final fromLocalesMap =
-          isFromAndroidProject ? androidLocalesMap : emptyLocalesMap;
+      final fromLocalesMap = isFromAndroidProject
+          ? androidLocalesMap
+          : (isToAndroidProject
+              ? androidNonAndroidMap.map((k, v) => MapEntry(v, k))
+              : emptyLocalesMap);
 
-      final toLocalesMap =
-          isToAndroidProject ? androidLocalesMap : emptyLocalesMap;
+      final toLocalesMap = isToAndroidProject
+          ? androidLocalesMap
+          : (isFromAndroidProject ? androidNonAndroidMap : emptyLocalesMap);
 
       final keysMap = <String, String>{};
       final keys = argKeys?.map((k) {
@@ -116,6 +129,7 @@ class TransferL10nCommand extends BaseL10nCommand {
 
       printVerbose('Keys for transfer: ${keys.join(', ')}.');
 
+      final changedLocales = <String>{};
       await forEachStringsFile(fromDir, fromFileName,
           (dirName, file, locale) async {
         final String toDirName;
@@ -125,10 +139,20 @@ class TransferL10nCommand extends BaseL10nCommand {
 
         if (toLocalesMap.containsKey(locale)) {
           toLocale = toLocalesMap[locale]!;
-          toDirName = getDirNameByLocale(toLocale);
+          toDirName =
+              isToAndroidProject ? getDirNameByLocale(toLocale) : toLocale;
         } else {
-          toLocale = locale;
-          toDirName = dirName;
+          // TODO: basically we need to check separator, it may be "-" and if this is not android project
+          // "-r" very unreliable too. Maybe we can check for existence with fallbacks
+          if (isFromAndroidProject == isToAndroidProject) {
+            toLocale = locale;
+          } else if (isFromAndroidProject) {
+            toLocale = locale.replaceAll('-r', '_').replaceAll('-', '_');
+          } else {
+            toLocale = locale.replaceAll('_', '-r');
+          }
+
+          toDirName = isToAndroidProject ? dirName : toLocale;
         }
 
         if (locales != null && !locales.contains(toLocale)) return;
@@ -152,35 +176,44 @@ class TransferL10nCommand extends BaseL10nCommand {
         final added = <XmlElement>{};
         final changed = <XmlElement>{};
         fromXml.forEachResource((child) {
+          if (!['string'].contains(child.name.toString())) return;
           final name = child.attributeName;
           if (keys.contains(name)) {
+            final value = _cleanValue(child.innerText);
+
             final newName = keysMap.containsKey(name) ? keysMap[name]! : name;
             final currentNode = toResources
                 .whereType<XmlElement>()
                 .firstWhereOrNull((c) => c.attributeName == newName);
             if (currentNode == null) {
-              printVerbose('Add <$newName>: ${child.innerText}');
+              printVerbose('Add <$newName>: $value');
               final newNode = child.copy();
               newNode.attributeName = newName;
+              newNode.innerText = value;
+
+              // clean
+              newNode.removeAttribute('msgid');
 
               toResources
                 ..add(nlNode.copy())
                 ..add(newNode);
 
               added.add(newNode);
-            } else if (currentNode.innerText != child.innerText) {
+            } else if (currentNode.innerText != value) {
               printVerbose(
-                  'Change <$newName>: ${currentNode.innerText} -> ${child.innerText}');
+                  'Change <$newName>: ${currentNode.innerText} -> $value');
               changed.add(child);
-              currentNode.innerText = child.innerText;
+              currentNode.innerText = value;
             } else {
-              printVerbose('Key <$newName> already exist, skipping');
+              printVerbose(
+                  'Key <$newName> already exist, skipping, <${currentNode.innerText}>, <$value>');
             }
           }
         });
         toResources.add(lastTextNode);
 
         if (added.isNotEmpty || changed.isNotEmpty) {
+          changedLocales.add(toLocale);
           printInfo('${toFile.path}: ${[
             if (added.isNotEmpty) 'added: ${added.length}',
             if (changed.isNotEmpty) 'changed: ${changed.length}',
@@ -195,6 +228,11 @@ class TransferL10nCommand extends BaseL10nCommand {
           printVerbose('Nothing');
         }
       }, isAndroidProject: isFromAndroidProject);
+
+      if (changedLocales.isNotEmpty) {
+        printInfo('\nChanged ${changedLocales.length} locales: '
+            '${(changedLocales.toList()..sort()).join(', ')}.');
+      }
 
       return success(message: 'Done.');
     } on RunException catch (e) {
@@ -248,7 +286,23 @@ class TransferL10nCommand extends BaseL10nCommand {
     const subPath = 'src/main/res/';
     final dirForAndroidProject = Directory(p.join(mainPath, subPath));
     if (dirForAndroidProject.existsSync()) return (dirForAndroidProject, true);
+
+    const subPath2 = 'res/';
+    final dirForAndroidProject2 = Directory(p.join(mainPath, subPath2));
+    if (File(p.join(dirForAndroidProject2.path, 'values/strings.xml'))
+        .existsSync()) {
+      return (dirForAndroidProject2, true);
+    }
+
     return (Directory(mainPath), false);
+  }
+
+  String _cleanValue(String value) {
+    var res = value;
+    if (value.startsWith('"') && value.endsWith('"')) {
+      res = res.substring(1, res.length - 1);
+    }
+    return res;
   }
 }
 
