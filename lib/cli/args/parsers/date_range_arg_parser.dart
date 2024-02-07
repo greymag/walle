@@ -22,7 +22,7 @@ class DateRangeArgParser {
       if (input.endsWith('d')) {
         final days = int.tryParse(input.substring(1, input.length - 1));
         if (days != null && days >= 0) {
-          end = days > 0 ? DateUtils.startOfToday() : DateTime.now();
+          end = days > 0 ? DTU.startOfToday() : DateTime.now();
           start = DateTime(end.year, end.month, end.day - days);
         }
       }
@@ -33,7 +33,7 @@ class DateRangeArgParser {
       start = _parseDate(parts[0]);
       end = _parseDate(parts[1]);
 
-      if (end != null) end = DateUtils.nextDay(end);
+      if (end != null) end = DTU.nextDay(end);
     }
 
     if (start == null || end == null || !start.isBefore(end)) return null;

@@ -13,8 +13,8 @@ class GoogleSheetsApi {
   static final _secret = utf8.decode(
       base64.decode('R09DU1BYLVRwRXAxYkVOcHRyM2ZWMzYwTEhyY0JCUHBINGw='));
 
-  final Function(String) prompt;
-  final Function(String)? log;
+  final void Function(String) prompt;
+  final void Function(String)? log;
   SheetsApi? _api;
 
   GoogleSheetsApi(this.prompt, {this.log});

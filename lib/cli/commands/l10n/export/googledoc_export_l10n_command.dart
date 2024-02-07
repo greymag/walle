@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:walle/cli/commands/l10n/base_l10n_command.dart';
 import 'package:walle/cli/exceptions/run_exception.dart';
-import 'package:walle/src/api/google_sheets/google_sheets_api.dart';
 import 'package:xml/xml.dart';
 
 /// Command to export  keys and values to Google Docs (sheets).
@@ -72,7 +71,7 @@ class GoolgedocExportL10nCommand extends BaseL10nCommand {
         final value = child.innerText;
 
         // TODO: write in google doc
-        print("$key\t$value");
+        print('$key\t$value');
       });
 
       return success(message: 'Done');
@@ -84,8 +83,8 @@ class GoolgedocExportL10nCommand extends BaseL10nCommand {
     }
   }
 
-  Future<GoogleSheetsApi?> _connectGoogleDocs() async {
-    final client = GoogleSheetsApi(printInfo, log: printVerbose);
-    return await client.connect() ? client : null;
-  }
+  // Future<GoogleSheetsApi?> _connectGoogleDocs() async {
+  //   final client = GoogleSheetsApi(printInfo, log: printVerbose);
+  //   return await client.connect() ? client : null;
+  // }
 }

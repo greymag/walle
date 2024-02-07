@@ -73,7 +73,7 @@ abstract class BaseL10nCommand extends WalleCommand {
     final xml = await loadXml(file);
     final data = <String, String>{};
     xml.forEachResource((child) {
-      data[child.attributeName] = child.text;
+      data[child.attributeName] = child.value ?? '';
     });
 
     return data;
