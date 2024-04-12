@@ -91,14 +91,17 @@ abstract class BaseL10nCommand extends WalleCommand {
     Future<void> Function(String dirName, File file, String locale) callback, {
     bool isAndroidProject = true,
   }) async {
+    printVerbose('Process dir ${dir.path}');
     await for (final d in dir.list()) {
       if (d is! Directory) continue;
 
       final prefix = isAndroidProject ? dirPrefix : '';
       final dirName = p.basename(d.path);
       if (prefix.isEmpty || dirName.startsWith(prefix)) {
+        // printVerbose('Process dir ./$dirName');
         final fromDirName = dirName;
         final fromFile = getXmlFile(dir, fromDirName, fileName);
+        // printVerbose('Check ${fromFile.path}');
         if (!fromFile.existsSync()) continue;
 
         final String locale;
@@ -112,6 +115,8 @@ abstract class BaseL10nCommand extends WalleCommand {
         }
 
         await callback(dirName, fromFile, locale);
+      } else {
+        // printVerbose('Skip dir ./$dirName');
       }
     }
   }

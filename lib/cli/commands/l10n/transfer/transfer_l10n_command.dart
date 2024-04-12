@@ -106,6 +106,8 @@ class TransferL10nCommand extends BaseL10nCommand {
           'Transfer from ${fromDir.path}${isFromAndroidProject ? ' [android project]' : ''} '
           'to ${toDir.path}${isToAndroidProject ? ' [android project]' : ''} ');
 
+      printVerbose('From file: $fromFileName, to file: $toFileName');
+
       final fromLocalesMap = isFromAndroidProject
           ? androidLocalesMap
           : (isToAndroidProject
@@ -206,7 +208,7 @@ class TransferL10nCommand extends BaseL10nCommand {
               currentNode.innerText = value;
             } else {
               printVerbose(
-                  'Key <$newName> already exist, skipping, <${currentNode.innerText}>, <$value>');
+                  'Key <$newName> already exist, skipping, <${currentNode.innerText}>, <$value> [$locale]');
             }
           }
         });
@@ -232,6 +234,8 @@ class TransferL10nCommand extends BaseL10nCommand {
       if (changedLocales.isNotEmpty) {
         printInfo('\nChanged ${changedLocales.length} locales: '
             '${(changedLocales.toList()..sort()).join(', ')}.');
+      } else {
+        printInfo('No changes');
       }
 
       return success(message: 'Done.');
