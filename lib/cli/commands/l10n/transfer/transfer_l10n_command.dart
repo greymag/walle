@@ -131,111 +131,147 @@ class TransferL10nCommand extends BaseL10nCommand {
 
       printVerbose('Keys for transfer: ${keys.join(', ')}.');
 
+      final importData = <String, File>{};
+      await forEachStringsFile(
+        fromDir,
+        fromFileName,
+        (dirName, file, locale) async {
+          importData[locale] = file;
+        },
+        isAndroidProject: isFromAndroidProject,
+      );
+
+      File? lookupImportFile(String locale) {
+        final file = importData[locale];
+        if (file != null) return file;
+        printVerbose('Not found file for $locale, try fallback');
+        if (locale.contains('-')) {
+          return lookupImportFile(locale.substring(0, locale.indexOf('-')));
+        } else if (locale.contains('_')) {
+          return lookupImportFile(locale.substring(0, locale.indexOf('_')));
+        }
+        return null;
+      }
+
+      final expectedLocales = <String>{};
+      final processedLocales = <String>{};
       final changedLocales = <String>{};
-      await forEachStringsFile(fromDir, fromFileName,
-          (dirName, file, locale) async {
-        final String toDirName;
-        final String toLocale;
+      await forEachStringsFile(
+        toDir,
+        toFileName,
+        (dirName, file, locale) async {
+          final toLocale = locale;
+          final toFile = file;
 
-        printVerbose('Checking from file ${file.path} [$locale]');
+          if (locales != null && !locales.contains(toLocale)) return;
 
-        if (toLocalesMap.containsKey(locale)) {
-          toLocale = toLocalesMap[locale]!;
-          toDirName =
-              isToAndroidProject ? getDirNameByLocale(toLocale) : toLocale;
-        } else {
-          // TODO: basically we need to check separator, it may be "-" and if this is not android project
-          // "-r" very unreliable too. Maybe we can check for existence with fallbacks
-          if (isFromAndroidProject == isToAndroidProject) {
-            toLocale = locale;
-          } else if (isFromAndroidProject) {
-            toLocale = locale.replaceAll('-r', '_').replaceAll('-', '_');
+          expectedLocales.add(toLocale);
+          String fromLocale;
+
+          printVerbose(
+              'Checking import source for file ${toFile.path} [$toLocale]');
+
+          if (toLocalesMap.containsKey(toLocale)) {
+            fromLocale = toLocalesMap[toLocale]!;
           } else {
-            toLocale = locale.replaceAll('_', '-r');
-          }
-
-          toDirName = isToAndroidProject ? dirName : toLocale;
-        }
-
-        if (locales != null && !locales.contains(toLocale)) return;
-
-        final toFile = getXmlFile(toDir, toDirName, toFileName);
-
-        printVerbose('Checking to file ${toFile.path} [$toLocale]');
-        if (!toFile.existsSync()) {
-          printVerbose('Not found, skipping');
-          return;
-        }
-
-        printVerbose('Processing $locale...');
-
-        final fromXml = await _loadXml(file);
-        final toXml = await _loadXml(toFile);
-
-        final toResources = toXml.resources.children;
-        final lastTextNode = toResources.removeLast();
-
-        final added = <XmlElement>{};
-        final changed = <XmlElement>{};
-        fromXml.forEachResource((child) {
-          if (!['string'].contains(child.name.toString())) return;
-          final name = child.attributeName;
-          if (keys.contains(name)) {
-            final value = _cleanValue(child.innerText);
-
-            final newName = keysMap.containsKey(name) ? keysMap[name]! : name;
-            final currentNode = toResources
-                .whereType<XmlElement>()
-                .firstWhereOrNull((c) => c.attributeName == newName);
-            if (currentNode == null) {
-              printVerbose('Add <$newName>: $value');
-              final newNode = child.copy();
-              newNode.attributeName = newName;
-              newNode.innerText = value;
-
-              // clean
-              newNode.removeAttribute('msgid');
-
-              toResources
-                ..add(nlNode.copy())
-                ..add(newNode);
-
-              added.add(newNode);
-            } else if (currentNode.innerText != value) {
-              printVerbose(
-                  'Change <$newName>: ${currentNode.innerText} -> $value');
-              changed.add(child);
-              currentNode.innerText = value;
+            // TODO: basically we need to check separator, it may be "-" and if this is not android project
+            // "-r" very unreliable too. Maybe we can check for existence with fallbacks
+            if (isFromAndroidProject == isToAndroidProject) {
+              fromLocale = toLocale;
+            } else if (isToAndroidProject) {
+              fromLocale = toLocale.replaceAll('-r', '_').replaceAll('-', '_');
             } else {
-              printVerbose(
-                  'Key <$newName> already exist, skipping, <${currentNode.innerText}>, <$value> [$locale]');
+              fromLocale = toLocale.replaceAll('_', '-r');
             }
           }
-        });
-        toResources.add(lastTextNode);
 
-        if (added.isNotEmpty || changed.isNotEmpty) {
-          changedLocales.add(toLocale);
-          printInfo('${toFile.path}: ${[
-            if (added.isNotEmpty) 'added: ${added.length}',
-            if (changed.isNotEmpty) 'changed: ${changed.length}',
-          ].join(', ')}');
-          await toFile.writeAsString(toXml.toXmlString(
-            // pretty: true,
-            // indent: indent,
-            //preserveWhitespace: (n) => !added.contains(n),
-            entityMapping: defaultXmlEntityMapping(),
-          ));
-        } else {
-          printVerbose('Nothing');
-        }
-      }, isAndroidProject: isFromAndroidProject);
+          printVerbose('Checking locale for import: $fromLocale');
+          final fromFile = lookupImportFile(fromLocale);
+          if (fromFile == null) {
+            printVerbose('Not found, skipping');
+            return;
+          }
+
+          printVerbose('Processing $toLocale...');
+
+          processedLocales.add(toLocale);
+
+          final fromXml = await _loadXml(fromFile);
+          final toXml = await _loadXml(toFile);
+
+          final toResources = toXml.resources.children;
+          final lastTextNode = toResources.removeLast();
+
+          final added = <XmlElement>{};
+          final changed = <XmlElement>{};
+          fromXml.forEachResource((child) {
+            if (!['string'].contains(child.name.toString())) return;
+            final name = child.attributeName;
+            if (keys.contains(name)) {
+              final value = _cleanValue(child.innerText);
+
+              final newName = keysMap.containsKey(name) ? keysMap[name]! : name;
+              final currentNode = toResources
+                  .whereType<XmlElement>()
+                  .firstWhereOrNull((c) => c.attributeName == newName);
+              if (currentNode == null) {
+                printVerbose('Add <$newName>: $value');
+                final newNode = child.copy();
+                newNode.attributeName = newName;
+                newNode.innerText = value;
+
+                // clean
+                newNode.removeAttribute('msgid');
+
+                toResources
+                  ..add(nlNode.copy())
+                  ..add(newNode);
+
+                added.add(newNode);
+              } else if (currentNode.innerText != value) {
+                printVerbose(
+                    'Change <$newName>: ${currentNode.innerText} -> $value');
+                changed.add(child);
+                currentNode.innerText = value;
+              } else {
+                printVerbose(
+                    'Key <$newName> already exist, skipping, <${currentNode.innerText}>, <$value> [$locale]');
+              }
+            }
+          });
+          toResources.add(lastTextNode);
+
+          if (added.isNotEmpty || changed.isNotEmpty) {
+            changedLocales.add(toLocale);
+            printInfo('${toFile.path}: ${[
+              if (added.isNotEmpty) 'added: ${added.length}',
+              if (changed.isNotEmpty) 'changed: ${changed.length}',
+            ].join(', ')}');
+            await toFile.writeAsString(toXml.toXmlString(
+              // pretty: true,
+              // indent: indent,
+              //preserveWhitespace: (n) => !added.contains(n),
+              entityMapping: defaultXmlEntityMapping(),
+            ));
+          } else {
+            printVerbose('Nothing');
+          }
+        },
+        isAndroidProject: isToAndroidProject,
+      );
 
       if (changedLocales.isNotEmpty) {
         printInfo('\nChanged ${changedLocales.length} locales: '
             '${(changedLocales.toList()..sort()).join(', ')}.');
       } else {
         printInfo('No changes');
+      }
+
+      if (processedLocales.length < expectedLocales.length) {
+        printInfo('Warning! Expected ${expectedLocales.length} locales, '
+            'processed ${processedLocales.length}');
+        printInfo(
+            'Skipped locales: ${expectedLocales.where((l) => !processedLocales.contains(l)).join(', ')}');
       }
 
       return success(message: 'Done.');
