@@ -84,13 +84,16 @@ class TransferL10nCommand extends BaseL10nCommand {
       'en': '',
     };
     const emptyLocalesMap = <String, String>{};
-    const androidNonAndroidMap = <String, String>{
+    const android2NonAndroidMap = <String, String>{
       'iw': 'he',
       'nb': 'no',
       'in': 'id',
       'b+sr+Latn': 'sr',
       '': 'en',
     };
+
+    final nonAndroid2AndroidMap =
+        android2NonAndroidMap.map((k, v) => MapEntry(v, k));
 
     if (fromPath == null || toPath == null) {
       return error(1, message: 'Both paths are required.');
@@ -111,12 +114,12 @@ class TransferL10nCommand extends BaseL10nCommand {
       final fromLocalesMap = isFromAndroidProject
           ? androidLocalesMap
           : (isToAndroidProject
-              ? androidNonAndroidMap.map((k, v) => MapEntry(v, k))
+              ? nonAndroid2AndroidMap // TODO: check, maybe android2NonAndroidMap?
               : emptyLocalesMap);
 
       final toLocalesMap = isToAndroidProject
           ? androidLocalesMap
-          : (isFromAndroidProject ? androidNonAndroidMap : emptyLocalesMap);
+          : (isFromAndroidProject ? nonAndroid2AndroidMap : emptyLocalesMap);
 
       final keysMap = <String, String>{};
       final keys = argKeys?.map((k) {
