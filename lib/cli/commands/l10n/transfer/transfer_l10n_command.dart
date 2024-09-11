@@ -156,6 +156,7 @@ class TransferL10nCommand extends BaseL10nCommand {
       final expectedLocales = <String>{};
       final processedLocales = <String>{};
       final changedLocales = <String>{};
+
       await forEachStringsFile(
         toDir,
         toFileName,
@@ -192,6 +193,7 @@ class TransferL10nCommand extends BaseL10nCommand {
             return;
           }
 
+          printVerbose('Found ${fromFile.path}');
           printVerbose('Processing $toLocale...');
 
           processedLocales.add(toLocale);
@@ -208,13 +210,14 @@ class TransferL10nCommand extends BaseL10nCommand {
             if (!['string'].contains(child.name.toString())) return;
             final name = child.attributeName;
             if (keys.contains(name)) {
-              final value = _cleanValue(child.innerText);
+              final value = _cleanValue(child.getValue());
 
               final newName = keysMap.containsKey(name) ? keysMap[name]! : name;
               final currentNode = toResources
                   .whereType<XmlElement>()
                   .firstWhereOrNull((c) => c.attributeName == newName);
-              if (currentNode == null) {
+              final curValue = currentNode?.getValue();
+              if (curValue == null) {
                 printVerbose('Add <$newName>: $value');
                 final newNode = child.copy();
                 newNode.attributeName = newName;
@@ -228,14 +231,13 @@ class TransferL10nCommand extends BaseL10nCommand {
                   ..add(newNode);
 
                 added.add(newNode);
-              } else if (currentNode.innerText != value) {
-                printVerbose(
-                    'Change <$newName>: ${currentNode.innerText} -> $value');
+              } else if (curValue != value) {
+                printVerbose('Change <$newName>: $curValue -> $value');
                 changed.add(child);
-                currentNode.innerText = value;
+                currentNode!.setValue(value);
               } else {
                 printVerbose(
-                    'Key <$newName> already exist, skipping, <${currentNode.innerText}>, <$value> [$locale]');
+                    'Key <$newName> already exist, skipping, <$curValue>, <$value> [$locale]');
               }
             }
           });
@@ -365,4 +367,13 @@ extension _MapExtension on Map<String, String> {
   }
 
   String val4Compare(String key) => trimmedValue(key).toLowerCase();
+}
+
+extension _XmlElementExt on XmlElement {
+  // String getValue() => innerText;
+  String getValue() => innerXml;
+  void setValue(String value) {
+    // innerText = value;
+    innerXml = value;
+  }
 }
