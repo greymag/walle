@@ -18,6 +18,7 @@ class TransferL10nCommand extends BaseL10nCommand {
   static const _argToFileName = 'to-filename';
   static const _argKeys = 'keys';
   static const _argFromType = 'from-type';
+  static const _argAll = 'all';
 
   TransferL10nCommand()
       : super(
@@ -48,6 +49,7 @@ class TransferL10nCommand extends BaseL10nCommand {
         abbr: 'k',
         help: 'Keys to transfer. If not defined - all missed keys, '
             'presented at main locale will be transferred. '
+            'Use --$_argAll to transfer all keys from source. '
             'You can use format key=alias if you want to rename the key during transfer.',
         valueHelp: 'key1,key2,...',
       )
@@ -71,6 +73,12 @@ class TransferL10nCommand extends BaseL10nCommand {
         valueHelp: 'my_filename',
         defaultsTo: _kTypeString,
         allowed: [_kTypeString, _kTypeStringArray],
+      )
+      ..addFlag(
+        _argAll,
+        abbr: 'a',
+        help: 'If --$_argKeys not defined, than transfer all keys from source, '
+            "rather than only presented at the target's at main locale",
       );
   }
 
@@ -88,6 +96,8 @@ class TransferL10nCommand extends BaseL10nCommand {
         getXmlFilename(args[_argToFileName] as String?, fromFileName);
 
     final argKeys = (args[_argKeys] as String?)?.split(',');
+    final transferAll =
+        argKeys?.isNotEmpty != true && (args[_argAll] ?? false) as bool;
 
     const toType = _FileType.string;
 
@@ -158,6 +168,7 @@ class TransferL10nCommand extends BaseL10nCommand {
             fromLocalesMap,
             isFromAndroidProject: isFromAndroidProject,
             isToAndroidProject: isToAndroidProject,
+            allFromSource: transferAll,
             validateByBase: locales != null,
           );
 
@@ -387,6 +398,7 @@ class TransferL10nCommand extends BaseL10nCommand {
       isAndroidProject: isToAndroidProject,
     ));
     return toMap.keys.where((key) {
+      if (allFromSource) return true;
       if (!fromMap.containsKey(key)) return false;
 
       if (validateByBase &&
