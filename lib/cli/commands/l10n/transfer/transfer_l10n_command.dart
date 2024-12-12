@@ -192,6 +192,16 @@ class TransferL10nCommand extends BaseL10nCommand {
           return lookupImportFile(locale.substring(0, locale.indexOf('-')));
         } else if (locale.contains('_')) {
           return lookupImportFile(locale.substring(0, locale.indexOf('_')));
+        } else {
+          // try compatible
+          final compatMap = {'no': 'nb'};
+
+          final compatLocale = compatMap[locale];
+          if (compatLocale != null) {
+            return lookupImportFile(compatLocale);
+          }
+
+          // TODO: reversed lookup
         }
         return null;
       }
