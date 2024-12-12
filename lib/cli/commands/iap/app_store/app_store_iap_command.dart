@@ -94,9 +94,7 @@ class AppStoreIapCommand extends BaseIapCommand {
 
       final api = AppStoreServerAPI(appStoreHttpClient);
 
-      if (lookupOrderId != null) {
-        await _lookupOrder(api, lookupOrderId);
-      }
+      await _lookupOrder(api, lookupOrderId);
 
       return success(message: 'Done.');
     } on RunException catch (e) {

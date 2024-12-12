@@ -151,8 +151,15 @@ class TransferL10nCommand extends BaseL10nCommand {
             return fromKey;
           }) ??
           await _getAllKeys(
-              fromDir, toDir, fromFileName, toFileName, fromLocalesMap,
-              validateByBase: locales != null);
+            fromDir,
+            toDir,
+            fromFileName,
+            toFileName,
+            fromLocalesMap,
+            isFromAndroidProject: isFromAndroidProject,
+            isToAndroidProject: isToAndroidProject,
+            validateByBase: locales != null,
+          );
 
       printVerbose('Keys for transfer: ${keys.join(', ')}.');
 
@@ -359,15 +366,26 @@ class TransferL10nCommand extends BaseL10nCommand {
     String fromFileName,
     String toFileName,
     Map<String, String> localesMap, {
+    required bool isFromAndroidProject,
+    required bool isToAndroidProject,
+    bool allFromSource = false,
     bool validateByBase = false,
   }) async {
     final fromLocale = baseLocale;
     final toLocale =
         validateByBase ? (localesMap[fromLocale] ?? baseLocale) : baseLocale;
-    final fromMap = await loadValuesByKeys(
-        getXmlFileByLocale(fromDir, fromLocale, fromFileName));
-    final toMap =
-        await loadValuesByKeys(getXmlFileByLocale(toDir, toLocale, toFileName));
+    final fromMap = await loadValuesByKeys(getXmlFileByLocale(
+      fromDir,
+      fromLocale,
+      fromFileName,
+      isAndroidProject: isFromAndroidProject,
+    ));
+    final toMap = await loadValuesByKeys(getXmlFileByLocale(
+      toDir,
+      toLocale,
+      toFileName,
+      isAndroidProject: isToAndroidProject,
+    ));
     return toMap.keys.where((key) {
       if (!fromMap.containsKey(key)) return false;
 

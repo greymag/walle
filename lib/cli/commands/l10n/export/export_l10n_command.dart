@@ -46,10 +46,24 @@ class ExportL10nCommand extends BaseL10nCommand {
       const subPath = 'src/main/res/';
       final dir = Directory(p.join(path, subPath));
 
-      final baseFile =
-          getXmlFileByLocaleIfExist(dir, baseLocaleForTranslate, fileName) ??
-              getXmlFileByLocale(dir, baseLocale, fileName);
-      final translationFile = getXmlFileByLocale(dir, locale, fileName);
+      final baseFile = getXmlFileByLocaleIfExist(
+            dir,
+            baseLocaleForTranslate,
+            fileName,
+            isAndroidProject: true,
+          ) ??
+          getXmlFileByLocale(
+            dir,
+            baseLocale,
+            fileName,
+            isAndroidProject: true,
+          );
+      final translationFile = getXmlFileByLocale(
+        dir,
+        locale,
+        fileName,
+        isAndroidProject: true,
+      );
 
       if (!translationFile.existsSync()) {
         printVerbose('Not found ${translationFile.path}');

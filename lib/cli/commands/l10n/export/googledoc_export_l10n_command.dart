@@ -62,9 +62,18 @@ class GoolgedocExportL10nCommand extends BaseL10nCommand {
       // final sheet = document.sheets!.first;
       // printVerbose('Selected sheet: ${sheet.properties?.title}');
 
-      final baseFile =
-          getXmlFileByLocaleIfExist(dir, baseLocaleForTranslate, fileName) ??
-              getXmlFileByLocale(dir, baseLocale, fileName);
+      final baseFile = getXmlFileByLocaleIfExist(
+            dir,
+            baseLocaleForTranslate,
+            fileName,
+            isAndroidProject: true,
+          ) ??
+          getXmlFileByLocale(
+            dir,
+            baseLocale,
+            fileName,
+            isAndroidProject: true,
+          );
       final baseXml = await loadXml(baseFile);
 
       // TODO: only if not exist in google doc (or maybe update value for all with difference)

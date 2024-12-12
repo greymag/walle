@@ -8,6 +8,7 @@ import 'package:xml/xml.dart';
 
 const _dirPrefix = 'values';
 const _baseLocale = '';
+const _baseLocaleValue = 'en';
 const _defaultFileName = 'strings.xml';
 const _indent = '    ';
 const _baseLocaleForTranslate = 'en';
@@ -52,23 +53,55 @@ abstract class BaseL10nCommand extends WalleCommand {
 
   @protected
   String getXmlPathByLocale(
-          Directory baseDir, String locale, String fileName) =>
-      getXmlPath(baseDir, getDirNameByLocale(locale), fileName);
+    Directory baseDir,
+    String locale,
+    String fileName, {
+    required bool isAndroidProject,
+  }) =>
+      getXmlPath(
+        baseDir,
+        getDirNameByLocale(locale, isAndroidProject: isAndroidProject),
+        fileName,
+      );
 
   @protected
-  File getXmlFileByLocale(Directory baseDir, String locale, String fileName) =>
-      File(getXmlPathByLocale(baseDir, locale, fileName));
+  File getXmlFileByLocale(
+    Directory baseDir,
+    String locale,
+    String fileName, {
+    required bool isAndroidProject,
+  }) =>
+      File(getXmlPathByLocale(
+        baseDir,
+        locale,
+        fileName,
+        isAndroidProject: isAndroidProject,
+      ));
 
   @protected
   File? getXmlFileByLocaleIfExist(
-      Directory baseDir, String locale, String fileName) {
-    final file = getXmlFileByLocale(baseDir, locale, fileName);
+    Directory baseDir,
+    String locale,
+    String fileName, {
+    required bool isAndroidProject,
+  }) {
+    final file = getXmlFileByLocale(
+      baseDir,
+      locale,
+      fileName,
+      isAndroidProject: isAndroidProject,
+    );
     return file.existsSync() ? file : null;
   }
 
   @protected
-  String getDirNameByLocale(String locale) =>
-      locale.isNotEmpty ? '$_dirPrefix-$locale' : _dirPrefix;
+  String getDirNameByLocale(
+    String locale, {
+    required bool isAndroidProject,
+  }) =>
+      isAndroidProject
+          ? (locale.isNotEmpty ? '$_dirPrefix-$locale' : _dirPrefix)
+          : (locale.isNotEmpty ? locale : _baseLocaleValue);
 
   @protected
   Future<Map<String, String>> loadValuesByKeys(File file) async {

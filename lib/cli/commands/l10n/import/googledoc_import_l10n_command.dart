@@ -122,9 +122,18 @@ class GoolgedocImportL10nCommand extends BaseL10nCommand {
           .sublist(1)
           .takeWhile((row) => row.values?[idIndex].formattedValue != null);
 
-      final baseFile =
-          getXmlFileByLocaleIfExist(dir, baseLocaleForTranslate, fileName) ??
-              getXmlFileByLocale(dir, baseLocale, fileName);
+      final baseFile = getXmlFileByLocaleIfExist(
+            dir,
+            baseLocaleForTranslate,
+            fileName,
+            isAndroidProject: true,
+          ) ??
+          getXmlFileByLocale(
+            dir,
+            baseLocale,
+            fileName,
+            isAndroidProject: true,
+          );
       final baseXml = await loadXml(baseFile);
       final allowedIds = <String>{};
       baseXml.forEachResource((child) => allowedIds.add(child.attributeName));
