@@ -125,6 +125,7 @@ abstract class BaseL10nCommand extends WalleCommand {
     bool isAndroidProject = true,
   }) async {
     printVerbose('Process dir ${dir.path}');
+    var processed = 0;
     await for (final d in dir.list()) {
       if (d is! Directory) continue;
 
@@ -147,10 +148,17 @@ abstract class BaseL10nCommand extends WalleCommand {
           locale = dirName;
         }
 
+        processed++;
         await callback(dirName, fromFile, locale);
       } else {
         // printVerbose('Skip dir ./$dirName');
       }
+    }
+
+    if (processed == 0) {
+      printInfo('No files or directory processed. '
+          'Check path, it should point to the android app directory '
+          'or explicitly to the translations directory.');
     }
   }
 
