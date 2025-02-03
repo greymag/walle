@@ -97,6 +97,7 @@ class ExportL10nCommand extends BaseL10nCommand {
           pretty: true,
           indent: indent,
           entityMapping: defaultXmlEntityMapping(),
+          preserveWhitespace: (node) => node.getAttribute('name') != null,
         );
 
         final buffer = StringBuffer();
@@ -113,7 +114,7 @@ class ExportL10nCommand extends BaseL10nCommand {
         printVerbose('Nothing to translate.');
       }
 
-      return success(message: 'All strings transferred.');
+      return success(message: 'Done.');
     } on RunException catch (e) {
       return exception(e);
     } catch (e, st) {
