@@ -182,6 +182,7 @@ abstract class BaseL10nCommand extends WalleCommand {
   ({
     Set<XmlElement> added,
     Set<XmlElement> changed,
+    XmlTransferStat stat,
   }) transferStrings(
     XmlDocument fromXml,
     XmlDocument toXml, {
@@ -201,6 +202,7 @@ abstract class BaseL10nCommand extends WalleCommand {
 
     final added = <XmlElement>{};
     final changed = <XmlElement>{};
+    var skippedEntries = 0;
     fromXml.forEachResource((child) {
       final tag = child.name.toString();
       if (allowedTags?.contains(tag) == false) return;
@@ -214,6 +216,7 @@ abstract class BaseL10nCommand extends WalleCommand {
 
       if (allowedKeys?.contains(name) == false) {
         printInfo('${outIndent}Skip key <$name>, because it is not allowed');
+        skippedEntries++;
         return;
       }
 
@@ -289,7 +292,13 @@ abstract class BaseL10nCommand extends WalleCommand {
     });
     toResources.add(lastTextNode);
 
-    return (added: added, changed: changed);
+    return (
+      added: added,
+      changed: changed,
+      stat: XmlTransferStat(
+        skippedEntries: skippedEntries,
+      ),
+    );
   }
 
   String _cleanValue(String value) {
@@ -338,12 +347,17 @@ abstract class BaseL10nCommand extends WalleCommand {
     Set<String> changedLocales,
     Set<String> processedLocales,
     Set<String> expectedLocales,
+    XmlTransferStat stat,
   ) {
     if (changedLocales.isNotEmpty) {
       printInfo('\n📝 Changed ${changedLocales.length} locales: '
           '${(changedLocales.toList()..sort()).join(', ')}.');
     } else {
       printInfo('🔍 No changes');
+    }
+
+    if (stat.skippedEntries > 0) {
+      printInfo('❗ Skipped ${stat.skippedEntries} entries. See output above.');
     }
 
     if (processedLocales.length < expectedLocales.length) {
@@ -416,4 +430,16 @@ enum XmlFileType {
         XmlFileType.stringArray => 'string-array',
         XmlFileType.plurals => 'plurals',
       };
+}
+
+class XmlTransferStat {
+  final int skippedEntries;
+
+  XmlTransferStat({
+    this.skippedEntries = 0,
+  });
+
+  XmlTransferStat operator +(XmlTransferStat other) => XmlTransferStat(
+        skippedEntries: skippedEntries + other.skippedEntries,
+      );
 }

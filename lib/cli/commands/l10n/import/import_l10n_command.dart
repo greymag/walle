@@ -167,6 +167,7 @@ class ImportL10nCommand extends BaseL10nCommand {
 
       final changedLocales = <String>{};
       final processedLocales = <String>{};
+      var totalStat = XmlTransferStat();
 
       final sourceFiles = sourceDir.listSync().whereType<File>().toList()
         ..sortBy((f) => p.basename(f.path));
@@ -194,7 +195,7 @@ class ImportL10nCommand extends BaseL10nCommand {
           }
 
           if (normalizeLocale(sourceLocale) != normalizeLocale(targetLocale)) {
-            printInfo(' * Auto define locale: $sourceLocale -> $targetLocale');
+            printInfo(' * Auto match locale: $sourceLocale -> $targetLocale');
           }
 
           if (!expectedLocales.contains(targetLocale)) {
@@ -210,8 +211,15 @@ class ImportL10nCommand extends BaseL10nCommand {
           final sourceXml = await loadXml(sourceFile);
           final targetXml = await loadXml(targetFile);
 
-          final (:added, :changed) = transferStrings(sourceXml, targetXml,
-              allowedKeys: keys, outIndent: ' * ');
+          final (:added, :changed, :stat) = transferStrings(
+            sourceXml,
+            targetXml,
+            allowedKeys: keys,
+            outIndent: ' * ',
+          );
+
+          totalStat += stat;
+
           if (added.isNotEmpty || changed.isNotEmpty) {
             changedLocales.add(targetLocale);
 
@@ -233,7 +241,12 @@ class ImportL10nCommand extends BaseL10nCommand {
         }
       }
 
-      printSummary(changedLocales, processedLocales, expectedLocales);
+      printSummary(
+        changedLocales,
+        processedLocales,
+        expectedLocales,
+        totalStat,
+      );
 
       return success(message: 'Done.');
     } on RunException catch (e) {

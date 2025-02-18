@@ -203,6 +203,7 @@ class TransferL10nCommand extends BaseL10nCommand {
       final expectedLocales = <String>{};
       final processedLocales = <String>{};
       final changedLocales = <String>{};
+      var totalStat = XmlTransferStat();
 
       await forEachStringsFile(
         toDir,
@@ -250,7 +251,7 @@ class TransferL10nCommand extends BaseL10nCommand {
           final fromXml = await loadXml(fromFile);
           final toXml = await loadXml(toFile);
 
-          final (:added, :changed) = transferStrings(
+          final (:added, :changed, :stat) = transferStrings(
             fromXml,
             toXml,
             supportedTypes: allowedFromTypes,
@@ -259,6 +260,8 @@ class TransferL10nCommand extends BaseL10nCommand {
             arrayIndexByKey: arrayIndexByKey,
             keysMap: keysMap,
           );
+
+          totalStat += stat;
 
           if (added.isNotEmpty || changed.isNotEmpty) {
             changedLocales.add(toLocale);
@@ -274,7 +277,12 @@ class TransferL10nCommand extends BaseL10nCommand {
         isAndroidProject: isToAndroidProject,
       );
 
-      printSummary(changedLocales, processedLocales, expectedLocales);
+      printSummary(
+        changedLocales,
+        processedLocales,
+        expectedLocales,
+        totalStat,
+      );
 
       return success(message: 'Done.');
     } on RunException catch (e) {
