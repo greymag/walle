@@ -255,7 +255,7 @@ class TransferL10nCommand extends BaseL10nCommand {
             fromXml,
             toXml,
             supportedTypes: allowedFromTypes,
-            allowedKeys: keys,
+            neededKeys: keys,
             toType: toType,
             arrayIndexByKey: arrayIndexByKey,
             keysMap: keysMap,

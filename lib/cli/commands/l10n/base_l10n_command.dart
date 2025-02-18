@@ -189,6 +189,7 @@ abstract class BaseL10nCommand extends WalleCommand {
     XmlDocument fromXml,
     XmlDocument toXml, {
     Iterable<XmlFileType>? supportedTypes,
+    Iterable<String>? neededKeys,
     Iterable<String>? allowedKeys,
     Map<String, int>? arrayIndexByKey,
     Map<String, String>? keysMap,
@@ -214,6 +215,10 @@ abstract class BaseL10nCommand extends WalleCommand {
       if (nodeType == null) {
         throw RunException.err('Unsupported tag <$tag> for key <$name>.\n'
             'Supported tags: ${XmlFileType.names.join(', ')}');
+      }
+
+      if (neededKeys?.contains(name) == false) {
+        return;
       }
 
       if (allowedKeys?.contains(name) == false) {
