@@ -17,6 +17,7 @@ const _kNotTranslatableLocales = {'ru'};
 
 const _kTypeString = 'string';
 const _kTypeStringArray = 'array';
+const _kTypePlurals = 'plurals';
 
 abstract class BaseL10nCommand extends WalleCommand {
   BaseL10nCommand(String name, String description,
@@ -203,41 +204,53 @@ abstract class BaseL10nCommand extends WalleCommand {
     fromXml.forEachResource((child) {
       final tag = child.name.toString();
       if (allowedTags?.contains(tag) == false) return;
-      final nodeType = XmlFileType.byName(tag);
 
       final name = child.attributeName;
+      final nodeType = XmlFileType.tryByName(tag);
+      if (nodeType == null) {
+        throw RunException.err('Unsupported tag <$tag> for key <$name>.\n'
+            'Supported tags: ${XmlFileType.names.join(', ')}');
+      }
+
       if (allowedKeys?.contains(name) == false) {
         printInfo('${outIndent}Skip key <$name>, because it is not allowed');
         return;
       }
 
       final String value;
-
-      switch (nodeType) {
-        case XmlFileType.string:
-          {
-            value = _cleanValue(child.getValue());
-          }
-        case XmlFileType.stringArray:
-          {
-            // TODO: currently only supports transfer one of the array element to the target string
-            final indexInArray = arrayIndexByKey?[name];
-            if (indexInArray == null) {
-              throw Exception('Transfer full array is not implemented yet. '
-                  'Specify index of the element in array in key name like: key[index]');
+      try {
+        switch (nodeType) {
+          case XmlFileType.string:
+            {
+              value = _cleanValue(child.getValue());
             }
+          case XmlFileType.stringArray:
+            {
+              // TODO: currently only supports transfer one of the array element to the target string
+              final indexInArray = arrayIndexByKey?[name];
+              if (indexInArray == null) {
+                throw Exception('Transfer full array is not implemented yet. '
+                    'Specify index of the element in array in key name like: key[index]');
+              }
 
-            final item = child.childElements
-                .where((e) => e.name.toString() == 'item')
-                .elementAtOrNull(indexInArray);
+              final item = child.childElements
+                  .where((e) => e.name.toString() == 'item')
+                  .elementAtOrNull(indexInArray);
 
-            if (item == null) {
-              throw RunException.err(
-                  'Cannot find item with index [$indexInArray] for array with key "$name"');
+              if (item == null) {
+                throw RunException.err(
+                    'Cannot find item with index [$indexInArray] for array with key "$name"');
+              }
+
+              value = _cleanValue(item.getValue());
             }
-
-            value = _cleanValue(item.getValue());
-          }
+          case XmlFileType.plurals:
+            {
+              value = child.getValue();
+            }
+        }
+      } catch (e, st) {
+        throw RunException.err('Failed to get value for key <$name>: $e\n$st');
       }
 
       final newName = keysMap != null && keysMap.containsKey(name) == true
@@ -299,6 +312,8 @@ abstract class BaseL10nCommand extends WalleCommand {
     final androidProjectSubPath = switch (type) {
       XmlFileType.string => 'values/strings.xml',
       XmlFileType.stringArray => 'values/arrays.xml',
+      XmlFileType.plurals =>
+        'values/plurals.xml', // TODO: or maybe strings.xml?
     };
 
     if (File(p.join(dirForAndroidProject2.path, androidProjectSubPath))
@@ -380,10 +395,14 @@ class _XmlEntityMapping extends XmlDefaultEntityMapping {
 
 enum XmlFileType {
   string(_kTypeString),
-  stringArray(_kTypeStringArray);
+  stringArray(_kTypeStringArray),
+  plurals(_kTypePlurals);
 
   static XmlFileType byName(String value) =>
       XmlFileType.values.firstWhere((e) => e.name == value);
+
+  static XmlFileType? tryByName(String value) =>
+      XmlFileType.values.firstWhereOrNull((e) => e.name == value);
 
   static List<String> get names =>
       XmlFileType.values.map((e) => e.name).toList();
@@ -394,6 +413,7 @@ enum XmlFileType {
 
   String get tag => switch (this) {
         XmlFileType.string => 'string',
-        XmlFileType.stringArray => 'string-array'
+        XmlFileType.stringArray => 'string-array',
+        XmlFileType.plurals => 'plurals',
       };
 }
