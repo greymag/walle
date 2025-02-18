@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:list_ext/list_ext.dart';
 import 'package:path/path.dart' as p;
 import 'package:walle/cli/commands/l10n/base_l10n_command.dart';
 import 'package:walle/cli/exceptions/run_exception.dart';
@@ -166,7 +167,11 @@ class ImportL10nCommand extends BaseL10nCommand {
 
       final changedLocales = <String>{};
       final processedLocales = <String>{};
-      for (final sourceFile in sourceDir.listSync().whereType<File>()) {
+
+      final sourceFiles = sourceDir.listSync().whereType<File>().toList()
+        ..sortBy((f) => p.basename(f.path));
+
+      for (final sourceFile in sourceFiles) {
         if (p.extension(sourceFile.path) == '.xml') {
           final sourceFullFileName = p.basename(sourceFile.path);
           printInfo('Import $sourceFullFileName');
