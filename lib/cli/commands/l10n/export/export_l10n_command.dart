@@ -9,6 +9,8 @@ import 'package:xml/xml.dart';
 class ExportL10nCommand extends BaseL10nCommand {
   static const _argPath = 'path';
   static const _argLocale = 'locale';
+  static const _argName = 'name';
+  static const _argOutput = 'output';
 
   ExportL10nCommand()
       : super(
@@ -21,12 +23,26 @@ class ExportL10nCommand extends BaseL10nCommand {
         abbr: 'p',
         help: 'Project path.',
         valueHelp: 'PATH',
+        mandatory: true,
       )
       ..addOption(
         _argLocale,
         abbr: 'l',
         help: 'Locale to check for missed translations.',
         valueHelp: 'LOCALE',
+        mandatory: true,
+      )
+      ..addOption(
+        _argName,
+        abbr: 'n',
+        help: 'Filename for export (without an extension).',
+        valueHelp: 'FILENAME',
+      )
+      ..addOption(
+        _argOutput,
+        abbr: 'o',
+        help: 'Output filename (without an extension).',
+        valueHelp: 'FILENAME',
       );
   }
 
@@ -35,12 +51,20 @@ class ExportL10nCommand extends BaseL10nCommand {
     final args = argResults!;
     final path = args[_argPath] as String?;
     final locale = args[_argLocale] as String?;
-    // TODO: add argument
-    final fileName = defaultFileName;
+    final sourceName = args[_argName] as String?;
+    final outputName = args[_argOutput] as String?;
 
     if (path == null || locale == null) {
       return error(1, message: 'Path and locale are required.');
     }
+
+    const ext = '.xml';
+    String getName(String? argValue, String defaultName) => argValue != null
+        ? (argValue.endsWith(ext) ? argValue : '$argValue$ext')
+        : defaultName;
+
+    final sourceFileName = getName(sourceName, defaultFileName);
+    final outputFileName = getName(outputName, sourceFileName);
 
     try {
       const subPath = 'src/main/res/';
@@ -49,19 +73,19 @@ class ExportL10nCommand extends BaseL10nCommand {
       final baseFile = getXmlFileByLocaleIfExist(
             dir,
             baseLocaleForTranslate,
-            fileName,
+            sourceFileName,
             isAndroidProject: true,
           ) ??
           getXmlFileByLocale(
             dir,
             baseLocale,
-            fileName,
+            sourceFileName,
             isAndroidProject: true,
           );
       final translationFile = getXmlFileByLocale(
         dir,
         locale,
-        fileName,
+        sourceFileName,
         isAndroidProject: true,
       );
 
@@ -105,13 +129,13 @@ class ExportL10nCommand extends BaseL10nCommand {
         buffer.write(content);
 
         // TODO: target file path
-        final targetFile = File(fileName);
+        final targetFile = File(outputFileName);
         targetFile.writeAsStringSync(buffer.toString());
 
         printInfo(
             'Saved to ${targetFile.absolute.path}. Send it to translators.');
       } else {
-        printVerbose('Nothing to translate.');
+        printInfo('Nothing to translate.');
       }
 
       return success(message: 'Done.');

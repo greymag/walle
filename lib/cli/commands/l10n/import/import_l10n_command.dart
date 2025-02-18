@@ -23,12 +23,14 @@ class ImportL10nCommand extends BaseL10nCommand {
         abbr: 'f',
         help: 'Translations directory path.',
         valueHelp: 'PATH',
+        mandatory: true,
       )
       ..addOption(
         _argPath,
         abbr: 'p',
         help: 'Project path.',
         valueHelp: 'PATH',
+        mandatory: true,
       );
     // ..addOption(
     //   _argLocale,
