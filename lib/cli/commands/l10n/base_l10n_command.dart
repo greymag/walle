@@ -20,6 +20,8 @@ const _kTypeStringArray = 'array';
 const _kTypePlurals = 'plurals';
 
 abstract class BaseL10nCommand extends WalleCommand {
+  static final _escapeSingleQuote = RegExp(r"(?<!\\)'");
+
   BaseL10nCommand(String name, String description,
       {List<WalleCommand>? subcommands})
       : super(name, description, subcommands: subcommands);
@@ -306,7 +308,9 @@ abstract class BaseL10nCommand extends WalleCommand {
     if (value.startsWith('"') && value.endsWith('"')) {
       res = res.substring(1, res.length - 1);
     }
-    return res;
+
+    // replace "'" with "\'" if not already escaped
+    return res.replaceAll(_escapeSingleQuote, r"\'");
   }
 
   @protected
