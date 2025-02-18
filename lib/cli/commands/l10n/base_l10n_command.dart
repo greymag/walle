@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:list_ext/list_ext.dart';
 import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 import 'package:walle/cli/commands/walle_command.dart';
@@ -12,6 +13,10 @@ const _baseLocaleValue = 'en';
 const _defaultFileName = 'strings.xml';
 const _indent = '    ';
 const _baseLocaleForTranslate = 'en';
+const _kNotTranslatableLocales = {'ru'};
+
+const _kTypeString = 'string';
+const _kTypeStringArray = 'array';
 
 abstract class BaseL10nCommand extends WalleCommand {
   BaseL10nCommand(String name, String description,
@@ -42,6 +47,9 @@ abstract class BaseL10nCommand extends WalleCommand {
 
   @protected
   String get baseLocaleForTranslate => _baseLocaleForTranslate;
+
+  @protected
+  Set<String> get notTranslatableLocales => _kNotTranslatableLocales;
 
   @protected
   String getXmlPath(Directory baseDir, String subdirName, String fileName) =>
@@ -168,6 +176,171 @@ abstract class BaseL10nCommand extends WalleCommand {
     const ext = '.xml';
     return p.extension(res) == ext ? res : p.setExtension(res, ext);
   }
+
+  @protected
+  ({
+    Set<XmlElement> added,
+    Set<XmlElement> changed,
+  }) transferStrings(
+    XmlDocument fromXml,
+    XmlDocument toXml, {
+    Iterable<XmlFileType>? supportedTypes,
+    Iterable<String>? allowedKeys,
+    Map<String, int>? arrayIndexByKey,
+    Map<String, String>? keysMap,
+    XmlFileType? toType,
+    String outIndent = '',
+  }) {
+    final toResources = toXml.resources.children;
+    final lastTextNode = toResources.removeLast();
+
+    final allowedTags = supportedTypes?.map((e) => e.tag).toSet();
+
+    final nlNode = XmlText('\n$indent');
+
+    final added = <XmlElement>{};
+    final changed = <XmlElement>{};
+    fromXml.forEachResource((child) {
+      final tag = child.name.toString();
+      if (allowedTags?.contains(tag) == false) return;
+      final nodeType = XmlFileType.byName(tag);
+
+      final name = child.attributeName;
+      if (allowedKeys?.contains(name) == false) {
+        printInfo('${outIndent}Skip key <$name>, because it is not allowed');
+        return;
+      }
+
+      final String value;
+
+      switch (nodeType) {
+        case XmlFileType.string:
+          {
+            value = _cleanValue(child.getValue());
+          }
+        case XmlFileType.stringArray:
+          {
+            // TODO: currently only supports transfer one of the array element to the target string
+            final indexInArray = arrayIndexByKey?[name];
+            if (indexInArray == null) {
+              throw Exception('Transfer full array is not implemented yet. '
+                  'Specify index of the element in array in key name like: key[index]');
+            }
+
+            final item = child.childElements
+                .where((e) => e.name.toString() == 'item')
+                .elementAtOrNull(indexInArray);
+
+            if (item == null) {
+              throw RunException.err(
+                  'Cannot find item with index [$indexInArray] for array with key "$name"');
+            }
+
+            value = _cleanValue(item.getValue());
+          }
+      }
+
+      final newName = keysMap != null && keysMap.containsKey(name) == true
+          ? keysMap[name]!
+          : name;
+
+      final currentNode = toResources
+          .whereType<XmlElement>()
+          .firstWhereOrNull((c) => c.attributeName == newName);
+      final curValue = currentNode?.getValue();
+      if (curValue == null) {
+        printVerbose('${outIndent}Add <$newName>: $value');
+        // final newNode = child.copy();
+        final toTag = toType?.tag ?? tag;
+        final newNode = XmlElement.tag(toTag);
+        newNode.attributeName = newName;
+        // newNode.innerText = value;
+        newNode.setValue(value);
+
+        // clean
+        // newNode.removeAttribute('msgid');
+
+        toResources
+          ..add(nlNode.copy())
+          ..add(newNode);
+
+        added.add(newNode);
+      } else if (curValue != value) {
+        printVerbose('${outIndent}Change <$newName>: $curValue -> $value');
+        changed.add(child);
+        currentNode!.setValue(value);
+      } else {
+        printVerbose(
+            '${outIndent}Key <$newName> already exist, skipping, <$curValue>, <$value>');
+      }
+    });
+    toResources.add(lastTextNode);
+
+    return (added: added, changed: changed);
+  }
+
+  String _cleanValue(String value) {
+    var res = value;
+    if (value.startsWith('"') && value.endsWith('"')) {
+      res = res.substring(1, res.length - 1);
+    }
+    return res;
+  }
+
+  @protected
+  (Directory, bool) getResDir(String mainPath, XmlFileType type) {
+    const subPath = 'src/main/res/';
+    final dirForAndroidProject = Directory(p.join(mainPath, subPath));
+    if (dirForAndroidProject.existsSync()) return (dirForAndroidProject, true);
+
+    const subPath2 = 'res/';
+    final dirForAndroidProject2 = Directory(p.join(mainPath, subPath2));
+
+    final androidProjectSubPath = switch (type) {
+      XmlFileType.string => 'values/strings.xml',
+      XmlFileType.stringArray => 'values/arrays.xml',
+    };
+
+    if (File(p.join(dirForAndroidProject2.path, androidProjectSubPath))
+        .existsSync()) {
+      return (dirForAndroidProject2, true);
+    }
+
+    return (Directory(mainPath), false);
+  }
+
+  @protected
+  Future<void> writeXml(File file, XmlDocument xml) async {
+    await file.writeAsString(xml.toXmlString(
+      // pretty: true,
+      // indent: indent,
+      //preserveWhitespace: (n) => !added.contains(n),
+      entityMapping: defaultXmlEntityMapping(),
+    ));
+  }
+
+  void printSummary(
+    Set<String> changedLocales,
+    Set<String> processedLocales,
+    Set<String> expectedLocales,
+  ) {
+    if (changedLocales.isNotEmpty) {
+      printInfo('\n📝 Changed ${changedLocales.length} locales: '
+          '${(changedLocales.toList()..sort()).join(', ')}.');
+    } else {
+      printInfo('🔍 No changes');
+    }
+
+    if (processedLocales.length < expectedLocales.length) {
+      printInfo('⚠️ Warning! Expected ${expectedLocales.length} locales, '
+          'processed ${processedLocales.length}');
+      printInfo(
+          'ℹ️ Skipped locales: ${expectedLocales.where((l) => !processedLocales.contains(l)).join(', ')}');
+    } else {
+      printInfo(
+          '✅ Processed ${processedLocales.length} locales (expected ${expectedLocales.length}).');
+    }
+  }
 }
 
 extension XmlDocumentExtension on XmlDocument {
@@ -183,6 +356,12 @@ extension XmlDocumentExtension on XmlDocument {
 extension XmlElementExtension on XmlElement {
   String get attributeName => getAttribute('name')!;
   set attributeName(String value) => setAttribute('name', value);
+  // String getValue() => innerText;
+  String getValue() => innerXml;
+  void setValue(String value) {
+    // innerText = value;
+    innerXml = value;
+  }
 }
 
 class _XmlEntityMapping extends XmlDefaultEntityMapping {
@@ -197,4 +376,24 @@ class _XmlEntityMapping extends XmlDefaultEntityMapping {
         .replaceAll('🀄', '&#126980;')
         .replaceAll('&#x7F;', '&#127;');
   }
+}
+
+enum XmlFileType {
+  string(_kTypeString),
+  stringArray(_kTypeStringArray);
+
+  static XmlFileType byName(String value) =>
+      XmlFileType.values.firstWhere((e) => e.name == value);
+
+  static List<String> get names =>
+      XmlFileType.values.map((e) => e.name).toList();
+
+  final String name;
+
+  const XmlFileType(this.name);
+
+  String get tag => switch (this) {
+        XmlFileType.string => 'string',
+        XmlFileType.stringArray => 'string-array'
+      };
 }

@@ -1,13 +1,7 @@
 import 'dart:io';
 
-import 'package:list_ext/list_ext.dart';
-import 'package:path/path.dart' as p;
 import 'package:walle/cli/commands/l10n/base_l10n_command.dart';
 import 'package:walle/cli/exceptions/run_exception.dart';
-import 'package:xml/xml.dart';
-
-const _kTypeString = 'string';
-const _kTypeStringArray = 'array';
 
 /// Command to transfer translations from one project to another.
 class TransferL10nCommand extends BaseL10nCommand {
@@ -71,8 +65,8 @@ class TransferL10nCommand extends BaseL10nCommand {
         _argFromType,
         help: 'Name of the file to work with',
         valueHelp: 'my_filename',
-        defaultsTo: _kTypeString,
-        allowed: [_kTypeString, _kTypeStringArray],
+        defaultsTo: XmlFileType.string.name,
+        allowed: XmlFileType.names,
       )
       ..addFlag(
         _argAll,
@@ -88,7 +82,7 @@ class TransferL10nCommand extends BaseL10nCommand {
     final fromPath = args[_argFrom] as String?;
     final toPath = args[_argTo] as String?;
     final locales = (args[_argLocales] as String?)?.split(',');
-    final fromType = _FileType.byName(args[_argFromType]! as String);
+    final fromType = XmlFileType.byName(args[_argFromType]! as String);
 
     final fromFileName =
         getXmlFilename(args[_argFromFileName] as String?, defaultFileName);
@@ -99,7 +93,7 @@ class TransferL10nCommand extends BaseL10nCommand {
     final transferAll =
         argKeys?.isNotEmpty != true && (args[_argAll] ?? false) as bool;
 
-    const toType = _FileType.string;
+    const toType = XmlFileType.string;
 
     // TODO: move to args?
     const androidLocalesMap = {
@@ -124,10 +118,8 @@ class TransferL10nCommand extends BaseL10nCommand {
     }
 
     try {
-      final nlNode = XmlText('\n$indent');
-
-      final (fromDir, isFromAndroidProject) = getDir(fromPath, fromType);
-      final (toDir, isToAndroidProject) = getDir(toPath, toType);
+      final (fromDir, isFromAndroidProject) = getResDir(fromPath, fromType);
+      final (toDir, isToAndroidProject) = getResDir(toPath, toType);
 
       printVerbose(
           'Transfer from ${fromDir.path}${isFromAndroidProject ? ' [android project]' : ''} '
@@ -150,7 +142,7 @@ class TransferL10nCommand extends BaseL10nCommand {
       final keys = argKeys?.map((k) {
             final parts = k.split('=');
             var fromKey = parts.first;
-            if (fromType == _FileType.stringArray && fromKey.contains('[')) {
+            if (fromType == XmlFileType.stringArray && fromKey.contains('[')) {
               final keyParts =
                   fromKey.substring(0, fromKey.length - 1).split('[');
               fromKey = keyParts[0];
@@ -206,8 +198,7 @@ class TransferL10nCommand extends BaseL10nCommand {
         return null;
       }
 
-      final fromTag = fromType.tag;
-      final toTag = toType.tag;
+      final allowedFromTypes = {fromType};
 
       final expectedLocales = <String>{};
       final processedLocales = <String>{};
@@ -228,7 +219,7 @@ class TransferL10nCommand extends BaseL10nCommand {
           printVerbose(
               'Checking import source for file ${toFile.path} [$toLocale]');
 
-          print('toLocalesMap:$toLocalesMap');
+          // print('toLocalesMap:$toLocalesMap');
 
           if (toLocalesMap.containsKey(toLocale)) {
             fromLocale = toLocalesMap[toLocale]!;
@@ -256,79 +247,18 @@ class TransferL10nCommand extends BaseL10nCommand {
 
           processedLocales.add(toLocale);
 
-          final fromXml = await _loadXml(fromFile);
-          final toXml = await _loadXml(toFile);
+          final fromXml = await loadXml(fromFile);
+          final toXml = await loadXml(toFile);
 
-          final toResources = toXml.resources.children;
-          final lastTextNode = toResources.removeLast();
-
-          final added = <XmlElement>{};
-          final changed = <XmlElement>{};
-          fromXml.forEachResource((child) {
-            if (![fromTag].contains(child.name.toString())) return;
-            final name = child.attributeName;
-            if (!keys.contains(name)) return;
-
-            final String value;
-
-            switch (fromType) {
-              case _FileType.string:
-                {
-                  value = _cleanValue(child.getValue());
-                }
-              case _FileType.stringArray:
-                {
-                  final indexInArray = arrayIndexByKey[name];
-                  if (indexInArray == null) {
-                    throw Exception(
-                        'Transfer full array is not implemented yet. '
-                        'Specify index of the element in array in key name like: key[index]');
-                  }
-
-                  final item = child.childElements
-                      .where((e) => e.name.toString() == 'item')
-                      .elementAtOrNull(indexInArray);
-
-                  if (item == null) {
-                    throw RunException.err(
-                        'Cannot find item with index [$indexInArray] for array with key "$name"');
-                  }
-
-                  value = _cleanValue(item.getValue());
-                }
-            }
-
-            final newName = keysMap.containsKey(name) ? keysMap[name]! : name;
-            final currentNode = toResources
-                .whereType<XmlElement>()
-                .firstWhereOrNull((c) => c.attributeName == newName);
-            final curValue = currentNode?.getValue();
-            if (curValue == null) {
-              printVerbose('Add <$newName>: $value');
-              // final newNode = child.copy();
-              final newNode = XmlElement.tag(toTag);
-              newNode.attributeName = newName;
-              // newNode.innerText = value;
-              newNode.setValue(value);
-
-              // clean
-              // newNode.removeAttribute('msgid');
-
-              toResources
-                ..add(nlNode.copy())
-                ..add(newNode);
-
-              added.add(newNode);
-            } else if (curValue != value) {
-              printVerbose('Change <$newName>: $curValue -> $value');
-              changed.add(child);
-              currentNode!.setValue(value);
-            } else {
-              printVerbose(
-                  'Key <$newName> already exist, skipping, <$curValue>, <$value> [$locale]');
-            }
-          });
-          toResources.add(lastTextNode);
+          final (:added, :changed) = transferStrings(
+            fromXml,
+            toXml,
+            supportedTypes: allowedFromTypes,
+            allowedKeys: keys,
+            toType: toType,
+            arrayIndexByKey: arrayIndexByKey,
+            keysMap: keysMap,
+          );
 
           if (added.isNotEmpty || changed.isNotEmpty) {
             changedLocales.add(toLocale);
@@ -336,12 +266,7 @@ class TransferL10nCommand extends BaseL10nCommand {
               if (added.isNotEmpty) 'added: ${added.length}',
               if (changed.isNotEmpty) 'changed: ${changed.length}',
             ].join(', ')}');
-            await toFile.writeAsString(toXml.toXmlString(
-              // pretty: true,
-              // indent: indent,
-              //preserveWhitespace: (n) => !added.contains(n),
-              entityMapping: defaultXmlEntityMapping(),
-            ));
+            await writeXml(toFile, toXml);
           } else {
             printVerbose('Nothing');
           }
@@ -349,19 +274,7 @@ class TransferL10nCommand extends BaseL10nCommand {
         isAndroidProject: isToAndroidProject,
       );
 
-      if (changedLocales.isNotEmpty) {
-        printInfo('\nChanged ${changedLocales.length} locales: '
-            '${(changedLocales.toList()..sort()).join(', ')}.');
-      } else {
-        printInfo('No changes');
-      }
-
-      if (processedLocales.length < expectedLocales.length) {
-        printInfo('Warning! Expected ${expectedLocales.length} locales, '
-            'processed ${processedLocales.length}');
-        printInfo(
-            'Skipped locales: ${expectedLocales.where((l) => !processedLocales.contains(l)).join(', ')}');
-      }
+      printSummary(changedLocales, processedLocales, expectedLocales);
 
       return success(message: 'Done.');
     } on RunException catch (e) {
@@ -369,15 +282,6 @@ class TransferL10nCommand extends BaseL10nCommand {
     } catch (e, st) {
       printVerbose('Exception: $e\n$st');
       return error(2, message: 'Failed by: $e');
-    }
-  }
-
-  Future<XmlDocument> _loadXml(File file) async {
-    try {
-      return XmlDocument.parse(await file.readAsString());
-    } catch (e, st) {
-      printVerbose('Exception during load xml from ${file.path}: $e\n$st');
-      throw RunException.err('Failed load XML ${file.path}: $e');
     }
   }
 
@@ -422,35 +326,6 @@ class TransferL10nCommand extends BaseL10nCommand {
       return true;
     }).toList();
   }
-
-  (Directory, bool) getDir(String mainPath, _FileType type) {
-    const subPath = 'src/main/res/';
-    final dirForAndroidProject = Directory(p.join(mainPath, subPath));
-    if (dirForAndroidProject.existsSync()) return (dirForAndroidProject, true);
-
-    const subPath2 = 'res/';
-    final dirForAndroidProject2 = Directory(p.join(mainPath, subPath2));
-
-    final androidProjectSubPath = switch (type) {
-      _FileType.string => 'values/strings.xml',
-      _FileType.stringArray => 'values/arrays.xml',
-    };
-
-    if (File(p.join(dirForAndroidProject2.path, androidProjectSubPath))
-        .existsSync()) {
-      return (dirForAndroidProject2, true);
-    }
-
-    return (Directory(mainPath), false);
-  }
-
-  String _cleanValue(String value) {
-    var res = value;
-    if (value.startsWith('"') && value.endsWith('"')) {
-      res = res.substring(1, res.length - 1);
-    }
-    return res;
-  }
 }
 
 extension _MapExtension on Map<String, String> {
@@ -472,30 +347,4 @@ extension _MapExtension on Map<String, String> {
   }
 
   String val4Compare(String key) => trimmedValue(key).toLowerCase();
-}
-
-extension _XmlElementExt on XmlElement {
-  // String getValue() => innerText;
-  String getValue() => innerXml;
-  void setValue(String value) {
-    // innerText = value;
-    innerXml = value;
-  }
-}
-
-enum _FileType {
-  string(_kTypeString),
-  stringArray(_kTypeStringArray);
-
-  static _FileType byName(String value) =>
-      _FileType.values.firstWhere((e) => e.name == value);
-
-  final String name;
-
-  const _FileType(this.name);
-
-  String get tag => switch (this) {
-        _FileType.string => 'string',
-        _FileType.stringArray => 'string-array'
-      };
 }
