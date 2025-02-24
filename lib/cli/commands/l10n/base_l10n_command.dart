@@ -236,23 +236,21 @@ abstract class BaseL10nCommand extends WalleCommand {
             }
           case XmlFileType.stringArray:
             {
-              // TODO: currently only supports transfer one of the array element to the target string
               final indexInArray = arrayIndexByKey?[name];
               if (indexInArray == null) {
-                throw Exception('Transfer full array is not implemented yet. '
-                    'Specify index of the element in array in key name like: key[index]');
+                value = child.getValue();
+              } else {
+                final item = child.childElements
+                    .where((e) => e.name.toString() == 'item')
+                    .elementAtOrNull(indexInArray);
+
+                if (item == null) {
+                  throw RunException.err(
+                      'Cannot find item with index [$indexInArray] for array with key "$name"');
+                }
+
+                value = _cleanValue(item.getValue());
               }
-
-              final item = child.childElements
-                  .where((e) => e.name.toString() == 'item')
-                  .elementAtOrNull(indexInArray);
-
-              if (item == null) {
-                throw RunException.err(
-                    'Cannot find item with index [$indexInArray] for array with key "$name"');
-              }
-
-              value = _cleanValue(item.getValue());
             }
           case XmlFileType.plurals:
             {
