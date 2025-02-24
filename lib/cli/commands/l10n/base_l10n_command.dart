@@ -211,10 +211,10 @@ abstract class BaseL10nCommand extends WalleCommand {
       if (allowedTags?.contains(tag) == false) return;
 
       final name = child.attributeName;
-      final nodeType = XmlFileType.tryByName(tag);
+      final nodeType = XmlFileType.tryByTag(tag);
       if (nodeType == null) {
         throw RunException.err('Unsupported tag <$tag> for key <$name>.\n'
-            'Supported tags: ${XmlFileType.names.join(', ')}');
+            'Supported tags: ${XmlFileType.tags.join(', ')}');
       }
 
       if (neededKeys?.contains(name) == false) {
@@ -427,8 +427,13 @@ enum XmlFileType {
   static XmlFileType? tryByName(String value) =>
       XmlFileType.values.firstWhereOrNull((e) => e.name == value);
 
+  static XmlFileType? tryByTag(String value) =>
+      XmlFileType.values.firstWhereOrNull((e) => e.tag == value);
+
   static List<String> get names =>
       XmlFileType.values.map((e) => e.name).toList();
+
+  static List<String> get tags => XmlFileType.values.map((e) => e.tag).toList();
 
   final String name;
 
