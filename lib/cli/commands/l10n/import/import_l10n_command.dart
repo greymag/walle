@@ -11,6 +11,7 @@ class ImportL10nCommand extends BaseL10nCommand {
   static const _argFrom = 'from';
   static const _argPath = 'path';
   // static const _argLocale = 'locale';
+  static const _argTargetFileName = 'target-file';
 
   ImportL10nCommand()
       : super(
@@ -31,6 +32,13 @@ class ImportL10nCommand extends BaseL10nCommand {
         help: 'Project path.',
         valueHelp: 'PATH',
         mandatory: true,
+      )
+      ..addOption(
+        _argTargetFileName,
+        abbr: 't',
+        help: 'Target file name.',
+        valueHelp: 'NAME',
+        defaultsTo: defaultFileName,
       );
     // ..addOption(
     //   _argLocale,
@@ -45,10 +53,10 @@ class ImportL10nCommand extends BaseL10nCommand {
     final args = argResults!;
     final fromPath = args[_argFrom] as String?;
     final projectPath = args[_argPath] as String?;
+    final targetFileName =
+        (args[_argTargetFileName] as String?) ?? defaultFileName;
     // TODO: support locale argument
     // final locale = args[_argLocale] as String?;
-    // TODO: add argument
-    final fileName = defaultFileName;
 
     if (projectPath == null || fromPath == null) {
       return error(
@@ -69,13 +77,13 @@ class ImportL10nCommand extends BaseL10nCommand {
       final baseFile = getXmlFileByLocaleIfExist(
             targetDir,
             baseLocaleForTranslate,
-            fileName,
+            targetFileName,
             isAndroidProject: true,
           ) ??
           getXmlFileByLocale(
             targetDir,
             baseLocale,
-            fileName,
+            targetFileName,
             isAndroidProject: true,
           );
 
@@ -101,7 +109,7 @@ class ImportL10nCommand extends BaseL10nCommand {
       final targetFiles = <String, File>{};
       await forEachStringsFile(
         targetDir,
-        fileName,
+        targetFileName,
         (dirName, file, locale) async {
           targetFiles[locale] = file;
         },
