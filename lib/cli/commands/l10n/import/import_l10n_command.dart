@@ -131,12 +131,12 @@ class ImportL10nCommand extends BaseL10nCommand {
       String? lookupTargetLocale(String locale) {
         String? check(String l) => targetFiles.containsKey(l) ? l : null;
 
-        String? checkCompat(String l) {
+        String? checkCompat(String l, {String suffix = ''}) {
           // try compatible
           final compatMap = {'no': 'nb'};
           final compatLocale = compatMap[l];
 
-          var res = compatLocale != null ? check(compatLocale) : null;
+          var res = compatLocale != null ? check(compatLocale + suffix) : null;
           if (res != null) return res;
 
           // convert 3 letter to 2 letter
@@ -144,7 +144,7 @@ class ImportL10nCommand extends BaseL10nCommand {
             final lang = LangCodes.getByAlpha3(l);
             final alpha2Code = lang?.alpha2.toLowerCase();
 
-            res = alpha2Code != null ? check(alpha2Code) : null;
+            res = alpha2Code != null ? check(alpha2Code + suffix) : null;
             if (res != null) return res;
           }
 
@@ -156,15 +156,22 @@ class ImportL10nCommand extends BaseL10nCommand {
 
         for (final sep in separators) {
           if (!locale.contains(sep)) continue;
+          final sepIndex = locale.indexOf(sep);
+          final baseLocale = locale.substring(0, sepIndex);
+          final region = sepIndex > 0 ? locale.substring(sepIndex + 1) : null;
 
           for (final altSep in separators) {
-            if (sep == altSep) continue;
+            if (sep != altSep) {
+              res = check(locale.replaceFirst(sep, altSep));
+              if (res != null) return res;
+            }
 
-            res = check(locale.replaceFirst(sep, altSep));
-            if (res != null) return res;
+            if (region != null) {
+              res = checkCompat(baseLocale, suffix: altSep + region);
+              if (res != null) return res;
+            }
           }
 
-          final baseLocale = locale.substring(0, locale.indexOf(sep));
           res = check(baseLocale) ?? checkCompat(baseLocale);
           if (res != null) return res;
         }
