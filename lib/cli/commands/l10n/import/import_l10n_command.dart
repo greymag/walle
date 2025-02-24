@@ -280,7 +280,9 @@ class ImportL10nCommand extends BaseL10nCommand {
     if (prevIndex != -1) {
       final localeCandidate = firstPart.substring(prevIndex + 1);
       if (localeCandidate.length == 2 &&
-          LangCodes.getByAlpha2(localeCandidate) != null) {
+              LangCodes.getByAlpha2(localeCandidate) != null ||
+          localeCandidate.length == 3 &&
+              LangCodes.getByAlpha3(localeCandidate) != null) {
         return localeCandidate + sep + lastCodePart;
       }
     }
