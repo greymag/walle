@@ -268,8 +268,23 @@ class ImportL10nCommand extends BaseL10nCommand {
   }
 
   String _getLocaleFromFileName(String fileName) {
+    const sep = '_';
     final baseName = p.basenameWithoutExtension(fileName);
-    final index = baseName.indexOf('_');
-    return baseName.substring(index + 1);
+    final lastIndex = baseName.lastIndexOf(sep);
+    if (lastIndex == -1) return '';
+
+    final lastCodePart = baseName.substring(lastIndex + 1);
+
+    final firstPart = baseName.substring(0, lastIndex);
+    final prevIndex = firstPart.lastIndexOf(sep);
+    if (prevIndex != -1) {
+      final localeCandidate = firstPart.substring(prevIndex + 1);
+      if (localeCandidate.length == 2 &&
+          LangCodes.getByAlpha2(localeCandidate) != null) {
+        return localeCandidate + sep + lastCodePart;
+      }
+    }
+
+    return lastCodePart;
   }
 }
