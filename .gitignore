@@ -10,3 +10,5 @@ doc/api/
 
 # VSCode settings
 .vscode/
+
+/presets
