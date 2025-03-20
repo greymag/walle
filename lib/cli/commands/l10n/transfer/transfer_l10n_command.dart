@@ -102,10 +102,9 @@ class TransferL10nCommand extends BaseL10nCommand {
       'en': '',
     };
     const emptyLocalesMap = <String, String>{};
-    const android2NonAndroidMap = <String, String>{
-      'iw': 'he',
+    final android2NonAndroidMap = <String, String>{
+      ...getAndroidLocaleAliasesMap(),
       'nb': 'no',
-      'in': 'id',
       'b+sr+Latn': 'sr',
       '': 'en',
     };

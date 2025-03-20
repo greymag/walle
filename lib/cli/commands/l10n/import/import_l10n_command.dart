@@ -284,12 +284,12 @@ class ImportL10nCommand extends BaseL10nCommand {
 
     final firstPart = baseName.substring(0, lastIndex);
     final prevIndex = firstPart.lastIndexOf(sep);
+
     if (prevIndex != -1) {
       final localeCandidate = firstPart.substring(prevIndex + 1);
-      if (localeCandidate.length == 2 &&
-              LangCodes.getByAlpha2(localeCandidate) != null ||
-          localeCandidate.length == 3 &&
-              LangCodes.getByAlpha3(localeCandidate) != null) {
+      final lang = convertAndroidLocale(localeCandidate);
+      if (lang.length == 2 && LangCodes.getByAlpha2(lang) != null ||
+          lang.length == 3 && LangCodes.getByAlpha3(lang) != null) {
         return localeCandidate + sep + lastCodePart;
       }
     }

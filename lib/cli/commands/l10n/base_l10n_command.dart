@@ -15,6 +15,17 @@ const _indent = '    ';
 const _baseLocaleForTranslate = 'en';
 const _kNotTranslatableLocales = {'ru'};
 
+// https://developer.android.com/reference/java/util/Locale.html#legacy-language-codes
+// Locale's constructor has always converted three language codes to their earlier,
+// obsoleted forms: he maps to iw, yi maps to ji, and id maps to in.
+// For apps targeting and running on Android V and later, this is no longer the case.
+// Each language maps to its new form; iw maps to he, ji maps to yi, and in maps to id.
+const _kAndroidLocaleAliasesMap = {
+  'in': 'id',
+  'iw': 'he',
+  'ji': 'yi',
+};
+
 const _kTypeString = 'string';
 const _kTypeStringArray = 'array';
 const _kTypePlurals = 'plurals';
@@ -315,6 +326,14 @@ abstract class BaseL10nCommand extends WalleCommand {
     // replace "'" with "\'" if not already escaped
     return res.replaceAll(_escapeSingleQuote, r"\'");
   }
+
+  @protected
+  String convertAndroidLocale(String locale) {
+    return _kAndroidLocaleAliasesMap[locale] ?? locale;
+  }
+
+  @protected
+  Map<String, String> getAndroidLocaleAliasesMap() => _kAndroidLocaleAliasesMap;
 
   @protected
   (Directory, bool) getResDir(String mainPath, XmlFileType type) {
