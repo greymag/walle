@@ -30,8 +30,13 @@ const _kTypeString = 'string';
 const _kTypeStringArray = 'array';
 const _kTypePlurals = 'plurals';
 
+const _kStringPluralPrefix = '{count,plural,';
+
 abstract class BaseL10nCommand extends WalleCommand {
   static final _escapeSingleQuote = RegExp(r"(?<!\\)'");
+
+  static final _pluralsRegex =
+      RegExp(r'([=\w]+)\s*\{([^}]*)\}', multiLine: true);
 
   BaseL10nCommand(String name, String description,
       {List<WalleCommand>? subcommands})
@@ -239,11 +244,18 @@ abstract class BaseL10nCommand extends WalleCommand {
       }
 
       final String value;
+      var targetNodeType = toType ?? nodeType;
       try {
         switch (nodeType) {
           case XmlFileType.string:
             {
-              value = _cleanValue(child.getValue());
+              final sourceValue = _cleanValue(child.getValue());
+              if (_isPluralString(sourceValue)) {
+                targetNodeType = XmlFileType.plurals;
+                value = _convertPluralsValue(sourceValue, indent);
+              } else {
+                value = sourceValue;
+              }
             }
           case XmlFileType.stringArray:
             {
@@ -283,7 +295,7 @@ abstract class BaseL10nCommand extends WalleCommand {
       if (curValue == null) {
         printVerbose('${outIndent}Add <$newName>: $value');
         // final newNode = child.copy();
-        final toTag = toType?.tag ?? tag;
+        final toTag = targetNodeType.tag;
         final newNode = XmlElement.tag(toTag);
         newNode.attributeName = newName;
         // newNode.innerText = value;
@@ -325,6 +337,47 @@ abstract class BaseL10nCommand extends WalleCommand {
 
     // replace "'" with "\'" if not already escaped
     return res.replaceAll(_escapeSingleQuote, r"\'");
+  }
+
+  bool _isPluralString(String value) {
+    return value
+        .trim()
+        .replaceAll('\n', '')
+        .replaceAll(' ', '')
+        .startsWith(_kStringPluralPrefix);
+  }
+
+  String _convertPluralsValue(String value, String baseIndent) {
+    final regex = _pluralsRegex;
+    final matches = regex.allMatches(value);
+
+    if (matches.isEmpty) {
+      throw RunException.err(
+          'Cannot convert plurals value, no matches found in "$value"');
+    }
+
+    final values = <String, String>{};
+    final itemIndent = '$baseIndent$indent';
+    for (final match in regex.allMatches(value)) {
+      final key = match.group(1)!;
+      final value = match.group(2)!.replaceAll('#', '');
+
+      final String quantity;
+      if (key == '=1') {
+        quantity = 'one';
+      } else {
+        quantity = key;
+      }
+
+      values[quantity] = value.trim();
+    }
+
+    final buffer = StringBuffer()..writeln();
+    values.forEach((quantity, value) {
+      buffer.writeln('$itemIndent<item quantity="$quantity">$value</item>');
+    });
+    buffer.write(baseIndent);
+    return buffer.toString();
   }
 
   @protected
