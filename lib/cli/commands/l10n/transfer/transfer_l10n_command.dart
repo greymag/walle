@@ -175,6 +175,9 @@ class TransferL10nCommand extends BaseL10nCommand {
         isAndroidProject: isFromAndroidProject,
       );
 
+      printVerbose('Import locales: ${importData.keys.join(', ')}.\n'
+          'Total: ${importData.length}');
+
       File? lookupImportFile(String locale) {
         final file = importData[locale];
         if (file != null) return file;
