@@ -121,8 +121,8 @@ class TransferL10nCommand extends BaseL10nCommand {
       final (toDir, isToAndroidProject) = getResDir(toPath, toType);
 
       printVerbose(
-          'Transfer from ${fromDir.path}${isFromAndroidProject ? ' [android project]' : ''} '
-          'to ${toDir.path}${isToAndroidProject ? ' [android project]' : ''} ');
+          'Transfer from ${fromDir.path} [${isFromAndroidProject ? 'android project' : 'non-android project'}] '
+          'to ${toDir.path} [${isToAndroidProject ? 'android project' : 'non-android project'}] ');
 
       printVerbose('From file: $fromFileName, to file: $toFileName');
 
