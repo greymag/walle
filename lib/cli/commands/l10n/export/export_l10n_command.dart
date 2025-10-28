@@ -70,6 +70,9 @@ class ExportL10nCommand extends BaseL10nCommand {
       const subPath = 'src/main/res/';
       final dir = Directory(p.join(path, subPath));
 
+      // Track whether exported strings include xliff tags
+      var needsXliffNamespace = false;
+
       final baseFile = getXmlFileByLocaleIfExist(
             dir,
             baseLocaleForTranslate,
@@ -111,10 +114,21 @@ class ExportL10nCommand extends BaseL10nCommand {
 
       if (forTranslation.isNotEmpty) {
         printInfo('Found ${forTranslation.length} strings for translation.');
+        // Detect presence of xliff tags among values to export
+        needsXliffNamespace = forTranslation.any((el) =>
+            el.descendants
+                .whereType<XmlElement>()
+                .any((d) => d.name.toString().startsWith('xliff:')));
 
         final xml4Translation = XmlDocument([
           XmlElement(XmlName.fromString('resources')),
         ]);
+        if (needsXliffNamespace) {
+          xml4Translation.resources.setAttribute(
+            'xmlns:xliff',
+            'urn:oasis:names:tc:xliff:document:1.2',
+          );
+        }
         xml4Translation.resources.children..addAll(forTranslation);
 
         final content = xml4Translation.toXmlString(
