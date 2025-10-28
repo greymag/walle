@@ -99,12 +99,15 @@ class TransferL10nCommand extends BaseL10nCommand {
     const androidLocalesMap = {
       // '': 'en',
       // 'zh-rCN': '',
+      // by default we use latin script for serbian (TODO: make it configurable? or/and detect if b+sr+Latn present in target separately)
+      'sr': 'b+sr+Latn',
       'en': '',
     };
     const emptyLocalesMap = <String, String>{};
     final android2NonAndroidMap = <String, String>{
       ...getAndroidLocaleAliasesMap(),
       'nb': 'no',
+      // by default we use latin script for serbian (TODO: make it configurable?)
       'b+sr+Latn': 'sr',
       '': 'en',
     };
